@@ -7,7 +7,11 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "CareSync needs camera access to capture prescription photos for digitization.",
+        "NSPhotoLibraryUsageDescription": "CareSync needs photo library access to pick prescription images for OCR scanning."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -15,10 +19,30 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+      },
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "be5e9ee5-a7e3-4405-b32c-3733d97bdcfd"
+      }
+    },
+    "owner": "code-quartet",
+    "plugins": [
+      "@react-native-community/datetimepicker",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "CareSync needs access to your photos to scan and digitize prescription documents.",
+          "cameraPermission": "CareSync needs camera access to capture prescription photos for AI-powered digitization."
+        }
+      ]
+    ]
   }
 }

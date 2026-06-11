@@ -1,0 +1,40 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "@components/*": [
+        "./src/components/*"
+      ],
+      "@screens/*": [
+        "./src/screens/*"
+      ],
+      "@context/*": [
+        "./src/context/*"
+      ],
+      "@services/*": [
+        "./src/services/*"
+      ],
+      "@utils/*": [
+        "./src/utils/*"
+      ],
+      "@constants/*": [
+        "./src/constants/*"
+      ],
+      "@navigation/*": [
+        "./src/navigation/*"
+      ]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.d.ts"
+  ]
+}

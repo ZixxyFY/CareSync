@@ -69,7 +69,7 @@ const TabLabel = ({ label, focused }: { label: string; focused: boolean }) => (
  * AuthorizedNav — Bottom Tab navigator shown after successful login.
  * Automatically mounted by the RootNavigator when AuthContext.user is non-null.
  */
-export default function AuthorizedNav(): JSX.Element {
+export default function AuthorizedNav(): React.JSX.Element {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => {

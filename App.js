@@ -28,6 +28,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { BookingProvider } from './src/context/BookingContext';
 import { MedicalProvider } from './src/context/MedicalContext';
+import { TransportProvider } from './src/context/TransportContext';
 import UnauthorizedNav from './src/navigation/UnauthorizedNav';
 import AuthorizedNav from './src/navigation/AuthorizedNav';
 
@@ -78,19 +79,21 @@ const RootNavigator = () => {
  * App — The React Native application root.
  *
  * Provider nesting order (outermost to innermost):
- *   SafeAreaProvider → AuthProvider → BookingProvider → MedicalProvider
- *   → PaperProvider → RootNavigator
+ *   SafeAreaProvider → AuthProvider → BookingProvider → TransportProvider
+ *   → MedicalProvider → PaperProvider → RootNavigator
  */
 export default function App() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
         <BookingProvider>
-          <MedicalProvider>
-            <PaperProvider theme={caresyncTheme}>
-              <RootNavigator />
-            </PaperProvider>
-          </MedicalProvider>
+          <TransportProvider>
+            <MedicalProvider>
+              <PaperProvider theme={caresyncTheme}>
+                <RootNavigator />
+              </PaperProvider>
+            </MedicalProvider>
+          </TransportProvider>
         </BookingProvider>
       </AuthProvider>
     </SafeAreaProvider>

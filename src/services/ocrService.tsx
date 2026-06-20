@@ -1,35 +1,22 @@
 // src/services/ocrService.tsx
 /**
  * @file ocrService.tsx
- * @description OCR (Optical Character Recognition) service for parsing prescription images.
+ * @description OCR service for CareSync — uses Google Gemini Vision API to extract
+ * structured medication data from real prescription images.
  *
- * SOLID Principle: Single Responsibility — this file only handles the
- * AI/OCR parsing logic. The MedicalContext calls it; it never touches
- * UI state or navigation.
+ * SOLID Principle: Open/Closed — swap the AI provider by changing callGeminiVision()
+ * without touching any calling code. The interface contract (OCRParseResult) stays the same.
  *
- * SOLID Principle: Open/Closed — in production, you can swap the mock AI
- * function for a real API call (e.g., Google Cloud Vision, AWS Textract)
- * without modifying any calling code, as the interface contract stays the same.
- *
- * In production, the image URI would be uploaded to a cloud storage bucket,
- * and the URL would be sent to a Vision AI API for text extraction and NLP
- * parsing to extract structured medication data.
+ * To enable real OCR, set your Gemini API key in src/config/ai.ts.
+ * Free tier: https://ai.google.dev/ — 15 requests/min, 1M tokens/day.
  */
+
+import { GEMINI_VISION_URL, isGeminiConfigured } from '../config/ai';
 
 // ---------------------------------------------------------------------------
 // TYPE DEFINITIONS
 // ---------------------------------------------------------------------------
 
-/**
- * @typedef {Object} ParsedMedication
- * Represents a single medication entry extracted from a scanned prescription.
- *
- * @property {string} medication - The drug/medication name (e.g., "Metformin 500mg")
- * @property {string} dosage - The amount per dose (e.g., "500mg", "1 tablet")
- * @property {string} frequency - How often to take it (e.g., "Twice daily", "Every 8 hours")
- * @property {string} [duration] - Optional: how long the course lasts (e.g., "30 days")
- * @property {string} [instructions] - Optional: additional guidance (e.g., "Take with food")
- */
 export interface ParsedMedication {
   medication: string;
   dosage: string;
@@ -38,17 +25,6 @@ export interface ParsedMedication {
   instructions?: string;
 }
 
-/**
- * @typedef {Object} OCRParseResult
- * The complete result object returned by the OCR parsing function.
- *
- * @property {ParsedMedication[]} medications - Array of parsed medication entries
- * @property {string} [patientName] - Optional: patient name found on the prescription
- * @property {string} [prescribedBy] - Optional: doctor's name
- * @property {string} [prescribedDate] - Optional: date of the prescription
- * @property {number} confidence - AI confidence score (0.0 – 1.0)
- * @property {string} rawText - The raw extracted text before parsing (for user verification)
- */
 export interface OCRParseResult {
   medications: ParsedMedication[];
   patientName?: string;
@@ -59,101 +35,191 @@ export interface OCRParseResult {
 }
 
 // ---------------------------------------------------------------------------
-// MOCK PRESCRIPTION DATASET
+// GEMINI PROMPT — instructs the model to return clean structured JSON
+// Optimized for Indian prescription formats (English + Hindi drug names)
+// ---------------------------------------------------------------------------
+
+const EXTRACTION_PROMPT = `You are an expert medical prescription parser trained on Indian and international prescriptions.
+Carefully analyze this prescription image and extract ALL readable information.
+
+Return ONLY a valid JSON object — no markdown fences, no explanations, no extra text, just raw JSON:
+{
+  "medications": [
+    {
+      "medication": "Complete drug name with strength, e.g. Metformin 500mg or Paracetamol 650mg",
+      "dosage": "Dose per administration, e.g. 1 tablet, 500mg, 5ml",
+      "frequency": "How often to take it, e.g. Twice daily after meals, BD, TDS, OD",
+      "duration": "Course length if specified, e.g. 5 days, 30 days, 1 month",
+      "instructions": "Special instructions, e.g. Take with food, Avoid alcohol, Before sleep"
+    }
+  ],
+  "patientName": "Full patient name if readable (first and last name)",
+  "prescribedBy": "Doctor name and qualifications if readable, e.g. Dr. Sharma MBBS MD",
+  "prescribedDate": "Prescription date in readable format, e.g. 15 Jun 2025",
+  "confidence": 0.95,
+  "rawText": "Every single word you can read from the image concatenated as a single readable string"
+}
+
+Extraction rules:
+- Extract EVERY medication listed, even if only partially visible or in abbreviation
+- Common Indian abbreviations: BD=twice daily, TDS=thrice daily, OD=once daily, HS=at bedtime, SOS=as needed
+- If a field is unclear or missing, OMIT that field entirely (do NOT write null or "N/A")
+- Set confidence: 1.0=perfectly clear prescription, 0.7=some blur, 0.4=hard to read, 0.1=not a prescription
+- If not a prescription image at all, return empty medications array with confidence 0.1
+- Capture all text verbatim in rawText including illegible parts transcribed phonetically
+- Do not hallucinate medications — only extract what is visibly written`;
+
+// ---------------------------------------------------------------------------
+// GEMINI VISION CALL
+// ---------------------------------------------------------------------------
+
+const callGeminiVision = async (
+  base64Image: string,
+  mimeType: 'image/jpeg' | 'image/png'
+): Promise<OCRParseResult> => {
+  const response = await fetch(GEMINI_VISION_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [
+        {
+          parts: [
+            { text: EXTRACTION_PROMPT },
+            {
+              inline_data: {
+                mime_type: mimeType,
+                data: base64Image,
+              },
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        temperature: 0.05,      // Very low temperature = deterministic, factual output
+        maxOutputTokens: 2048,  // Enough for detailed prescriptions
+        response_mime_type: 'application/json',
+      },
+    }),
+  });
+
+  // Surface authentication and quota errors clearly
+  if (response.status === 400) {
+    const errBody = await response.text();
+    throw new Error(`API Error 400 — Bad request. Check your API key format.\n\nDetails: ${errBody.slice(0, 300)}`);
+  }
+  if (response.status === 401 || response.status === 403) {
+    throw new Error(
+      'API Key authentication failed (Error ' + response.status + ').\n\n' +
+      'Your key may be:\n' +
+      '• Expired or revoked\n' +
+      '• Missing Gemini API access\n\n' +
+      'Get a new key at: https://ai.google.dev/'
+    );
+  }
+  if (response.status === 429) {
+    throw new Error('API rate limit exceeded. You have used all free-tier requests. Try again in a minute.');
+  }
+  if (!response.ok) {
+    const errBody = await response.text();
+    throw new Error(`Gemini API error (${response.status}):\n${errBody.slice(0, 300)}`);
+  }
+
+  const json = await response.json();
+  const rawText: string | undefined = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (!rawText) {
+    const blockReason = json?.promptFeedback?.blockReason;
+    if (blockReason) {
+      throw new Error(`Gemini blocked the request: ${blockReason}. Try a clearer image.`);
+    }
+    throw new Error('Gemini returned an empty response. Check your API key quota at ai.google.dev/');
+  }
+
+  let parsed: OCRParseResult;
+  try {
+    // Strip any accidental markdown fences before parsing
+    const cleaned = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    parsed = JSON.parse(cleaned);
+  } catch {
+    throw new Error(`Could not parse AI response as JSON.\n\nRaw response: ${rawText.slice(0, 200)}`);
+  }
+
+  if (!Array.isArray(parsed.medications)) {
+    throw new Error('Unexpected response structure from Gemini — medications field is missing or invalid.');
+  }
+
+  // Ensure required numeric field with a sensible default
+  if (typeof parsed.confidence !== 'number') {
+    parsed.confidence = 0.7;
+  }
+  // Clamp confidence to [0, 1]
+  parsed.confidence = Math.max(0, Math.min(1, parsed.confidence));
+
+  return parsed;
+};
+
+// ---------------------------------------------------------------------------
+// MAIN OCR FUNCTION
 // ---------------------------------------------------------------------------
 
 /**
- * A pool of realistic mock prescription parse results.
- * The mock function randomly selects from these to simulate different prescriptions.
- */
-const MOCK_PRESCRIPTIONS: OCRParseResult[] = [
-  {
-    medications: [
-      {
-        medication: 'Metformin 500mg',
-        dosage: '500mg',
-        frequency: 'Twice daily (after meals)',
-        duration: '90 days',
-        instructions: 'Take with food to minimize stomach upset.',
-      },
-      {
-        medication: 'Atorvastatin 20mg',
-        dosage: '20mg',
-        frequency: 'Once daily (at bedtime)',
-        duration: '90 days',
-        instructions: 'Avoid grapefruit juice.',
-      },
-    ],
-    patientName: 'Neeraj Sahu',
-    prescribedBy: 'Dr. Anita Gupta',
-    prescribedDate: '06 Jun 2026',
-    confidence: 0.94,
-    rawText:
-      'Rx\nPatient: Neeraj Sahu\nDr. Anita Gupta, MBBS, MD (Endocrinology)\n1. Tab Metformin 500mg - BD (After meals) x 90 days\n2. Tab Atorvastatin 20mg - OD (Bedtime) x 90 days\nDate: 06/06/2026',
-  },
-  {
-    medications: [
-      {
-        medication: 'Amlodipine 5mg',
-        dosage: '5mg',
-        frequency: 'Once daily (morning)',
-        duration: '60 days',
-        instructions: 'Monitor blood pressure regularly.',
-      },
-      {
-        medication: 'Aspirin 75mg',
-        dosage: '75mg',
-        frequency: 'Once daily (with breakfast)',
-        duration: '60 days',
-        instructions: 'Do not take on an empty stomach.',
-      },
-      {
-        medication: 'Pantoprazole 40mg',
-        dosage: '40mg',
-        frequency: 'Once daily (30 min before breakfast)',
-        duration: '30 days',
-      },
-    ],
-    patientName: 'Neeraj Sahu',
-    prescribedBy: 'Dr. Rajan Mehta',
-    prescribedDate: '07 Jun 2026',
-    confidence: 0.88,
-    rawText:
-      'Rx\nPatient: Neeraj Sahu\nDr. Rajan Mehta, DM (Cardiology)\n1. Tab Amlodipine 5mg - OD (Morning) x 60 days\n2. Tab Aspirin 75mg - OD (With breakfast) x 60 days\n3. Tab Pantoprazole 40mg - OD (Before breakfast) x 30 days\nDate: 07/06/2026',
-  },
-];
-
-// ---------------------------------------------------------------------------
-// MAIN OCR PARSE FUNCTION
-// ---------------------------------------------------------------------------
-
-/**
- * Simulates sending a prescription image to an AI OCR service for text extraction
- * and structured data parsing.
+ * Parses a prescription image using Google Gemini Vision API.
  *
- * In production, this function would:
- * 1. Upload the image to cloud storage (e.g., Firebase Storage)
- * 2. Send the image URL to a Vision AI endpoint
- * 3. Return parsed structured medication data
+ * @param imageUri   - The local file URI of the selected/captured image
+ * @param imageBase64 - Base64-encoded image data (from expo-image-picker with base64: true)
  *
- * The mock intentionally uses a 2-second delay to simulate real AI processing time,
- * allowing the UI to display a realistic loading state.
- *
- * @param {string} imageUri - The local URI of the selected/captured image from expo-image-picker.
- * @returns {Promise<OCRParseResult>} Structured medication data extracted from the prescription.
- * @throws {Error} If the image URI is invalid or the (mock) AI parsing fails.
+ * If no Gemini API key is configured in src/config/ai.ts, logs a warning and
+ * returns a clearly-labelled mock result so the UI still works during development.
  */
 export const parsePrescritionImageAPI = async (
-  imageUri: string
+  imageUri: string,
+  imageBase64?: string
 ): Promise<OCRParseResult> => {
   if (!imageUri) {
     throw new Error('A valid image URI is required for OCR processing.');
   }
 
-  // Simulate a 2-second AI processing delay (as specified in requirements)
+  // ── REAL OCR PATH ──────────────────────────────────────────────────────
+  if (isGeminiConfigured() && imageBase64) {
+    const lowerUri = imageUri.toLowerCase();
+    const mimeType: 'image/jpeg' | 'image/png' = lowerUri.endsWith('.png')
+      ? 'image/png'
+      : 'image/jpeg';
+
+    return await callGeminiVision(imageBase64, mimeType);
+  }
+
+  // ── MISSING BASE64 (edge case) ─────────────────────────────────────────
+  if (isGeminiConfigured() && !imageBase64) {
+    console.warn('[CareSync OCR] Gemini configured but no base64 data received from image picker.');
+  }
+
+  // ── FALLBACK / DEV MODE ───────────────────────────────────────────────
+  if (!isGeminiConfigured()) {
+    console.warn(
+      '[CareSync OCR] Gemini API key not configured.\n' +
+      'Add your key to src/config/ai.ts to enable real prescription scanning.\n' +
+      'Get a free key at: https://ai.google.dev/'
+    );
+  }
+
+  // Simulate processing delay so the loading UI is visible
   await new Promise((resolve) => setTimeout(resolve, 2000));
 
-  // Randomly select from our mock prescription dataset to simulate variability
-  const randomIndex = Math.floor(Math.random() * MOCK_PRESCRIPTIONS.length);
-  return MOCK_PRESCRIPTIONS[randomIndex];
+  // Return a clearly-labelled placeholder so the user knows it's mock data
+  return {
+    medications: [
+      {
+        medication: '[DEMO] Configure Gemini API Key',
+        dosage: 'See src/config/ai.ts',
+        frequency: 'Once — to enable real OCR',
+        instructions: 'Visit ai.google.dev for a free key',
+      },
+    ],
+    patientName: 'Demo Mode',
+    prescribedBy: 'CareSync System',
+    prescribedDate: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+    confidence: 0.0,
+    rawText: '[DEMO MODE — Real OCR disabled. Add your Gemini API key to src/config/ai.ts]',
+  };
 };

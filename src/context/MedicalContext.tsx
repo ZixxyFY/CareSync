@@ -3,18 +3,23 @@
  * @file MedicalContext.tsx
  * @description Global state management for medical records and OCR prescriptions.
  *
- * SOLID Principle: Single Responsibility — manages ONLY the medical record
- * lifecycle. Booking and auth concerns live in their own contexts.
+ * SOLID Principle: Single Responsibility — manages ONLY the medical record lifecycle.
+ * SOLID Principle: Open/Closed — new record types (lab results, imaging) can be added
+ * via new action types without modifying existing handlers.
  *
- * SOLID Principle: Open/Closed — new medical record types (lab results,
- * imaging reports) can be added via new action types without modifying
- * existing handlers.
- *
- * Data Flow: OCRScanner UI → useMedical() → MedicalContext → ocrService → AI API
+ * Data Flow: OCRScanner UI → useMedical() → MedicalContext → medicalService → Supabase
  */
 
 import React, { createContext, useReducer, useContext, useCallback } from 'react';
 import { parsePrescritionImageAPI, OCRParseResult, ParsedMedication } from '../services/ocrService';
+import {
+  MedicalRecordDB,
+  CreateMedicalRecordDTO,
+  fetchMedicalRecordsAPI,
+  saveMedicalRecordAPI,
+  deleteMedicalRecordAPI,
+} from '../services/medicalService';
+import { useAuth } from './AuthContext';
 
 // ---------------------------------------------------------------------------
 // TYPE DEFINITIONS
@@ -22,23 +27,16 @@ import { parsePrescritionImageAPI, OCRParseResult, ParsedMedication } from '../s
 
 /**
  * @typedef {Object} MedicalRecord
- * Represents a saved, user-confirmed medical record.
- *
- * @property {string} id - Unique record ID
- * @property {string} imageUri - The local URI of the original scanned image
- * @property {ParsedMedication[]} medications - Confirmed medication entries
- * @property {string} [patientName] - Patient name from the prescription
- * @property {string} [prescribedBy] - Doctor's name
- * @property {string} [prescribedDate] - Date on the prescription
- * @property {string} savedAt - ISO timestamp when this record was saved by the user
+ * Represents a saved, user-confirmed medical record (mirrors DB schema).
  */
 export interface MedicalRecord {
   id: string;
-  imageUri: string;
+  imageUri?: string;
   medications: ParsedMedication[];
   patientName?: string;
   prescribedBy?: string;
   prescribedDate?: string;
+  confidence?: number;
   savedAt: string;
 }
 
@@ -49,6 +47,8 @@ interface MedicalState {
   /** URI of the image currently being processed */
   scannedImageUri: string | null;
   isProcessing: boolean;
+  isLoadingRecords: boolean;
+  isSaving: boolean;
   error: string | null;
 }
 
@@ -57,7 +57,10 @@ type MedicalAction =
   | { type: 'SET_SCANNED_IMAGE'; payload: string }
   | { type: 'SET_OCR_RESULT'; payload: OCRParseResult }
   | { type: 'CLEAR_PENDING' }
-  | { type: 'SAVE_RECORD'; payload: MedicalRecord }
+  | { type: 'SET_LOADING_RECORDS'; payload: boolean }
+  | { type: 'SET_SAVING'; payload: boolean }
+  | { type: 'SET_RECORDS'; payload: MedicalRecord[] }
+  | { type: 'ADD_RECORD'; payload: MedicalRecord }
   | { type: 'DELETE_RECORD'; payload: string }
   | { type: 'SET_ERROR'; payload: string };
 
@@ -70,6 +73,8 @@ const initialState: MedicalState = {
   pendingOCRResult: null,
   scannedImageUri: null,
   isProcessing: false,
+  isLoadingRecords: false,
+  isSaving: false,
   error: null,
 };
 
@@ -83,12 +88,19 @@ const medicalReducer = (state: MedicalState, action: MedicalAction): MedicalStat
       return { ...state, pendingOCRResult: action.payload, isProcessing: false };
     case 'CLEAR_PENDING':
       return { ...state, pendingOCRResult: null, scannedImageUri: null, error: null };
-    case 'SAVE_RECORD':
+    case 'SET_LOADING_RECORDS':
+      return { ...state, isLoadingRecords: action.payload };
+    case 'SET_SAVING':
+      return { ...state, isSaving: action.payload };
+    case 'SET_RECORDS':
+      return { ...state, records: action.payload, isLoadingRecords: false };
+    case 'ADD_RECORD':
       return {
         ...state,
         records: [action.payload, ...state.records],
         pendingOCRResult: null,
         scannedImageUri: null,
+        isSaving: false,
       };
     case 'DELETE_RECORD':
       return {
@@ -96,7 +108,7 @@ const medicalReducer = (state: MedicalState, action: MedicalAction): MedicalStat
         records: state.records.filter((r) => r.id !== action.payload),
       };
     case 'SET_ERROR':
-      return { ...state, isProcessing: false, error: action.payload };
+      return { ...state, isProcessing: false, isSaving: false, error: action.payload };
     default:
       return state;
   }
@@ -108,28 +120,54 @@ const medicalReducer = (state: MedicalState, action: MedicalAction): MedicalStat
 
 interface MedicalContextValue {
   state: MedicalState;
-  scanPrescription: (imageUri: string) => Promise<void>;
+  loadRecords: () => Promise<void>;
+  scanPrescription: (imageUri: string, imageBase64?: string) => Promise<void>;
   saveVerifiedRecord: (
     imageUri: string,
     medications: ParsedMedication[],
-    meta: { patientName?: string; prescribedBy?: string; prescribedDate?: string }
-  ) => void;
-  deleteRecord: (id: string) => void;
+    meta: { patientName?: string; prescribedBy?: string; prescribedDate?: string; confidence?: number }
+  ) => Promise<void>;
+  deleteRecord: (id: string) => Promise<void>;
   clearPending: () => void;
 }
 
 const MedicalContext = createContext<MedicalContextValue | null>(null);
 
 // ---------------------------------------------------------------------------
+// HELPER: map DB record → local MedicalRecord shape
+// ---------------------------------------------------------------------------
+const dbToLocal = (db: MedicalRecordDB): MedicalRecord => ({
+  id: db.id,
+  imageUri: db.image_uri,
+  medications: db.medications,
+  patientName: db.patient_name,
+  prescribedBy: db.prescribed_by,
+  prescribedDate: db.prescribed_date,
+  confidence: db.confidence,
+  savedAt: db.saved_at,
+});
+
+// ---------------------------------------------------------------------------
 // PROVIDER
 // ---------------------------------------------------------------------------
 
-/**
- * MedicalProvider supplies OCR scanning state and saved medical records
- * to descendant components.
- */
 export const MedicalProvider = ({ children }: { children: React.ReactNode }) => {
   const [state, dispatch] = useReducer(medicalReducer, initialState);
+  const { user } = useAuth();
+
+  /**
+   * Loads all saved medical records from Supabase for the current user.
+   */
+  const loadRecords = useCallback(async (): Promise<void> => {
+    if (!user) return;
+    dispatch({ type: 'SET_LOADING_RECORDS', payload: true });
+    try {
+      const data = await fetchMedicalRecordsAPI(user.id);
+      dispatch({ type: 'SET_RECORDS', payload: data.map(dbToLocal) });
+    } catch (error: any) {
+      dispatch({ type: 'SET_ERROR', payload: 'Failed to load medical records.' });
+    }
+  }, [user]);
 
   /**
    * Initiates the OCR pipeline:
@@ -140,11 +178,11 @@ export const MedicalProvider = ({ children }: { children: React.ReactNode }) => 
    *
    * @param {string} imageUri - Local URI from expo-image-picker
    */
-  const scanPrescription = useCallback(async (imageUri: string): Promise<void> => {
+  const scanPrescription = useCallback(async (imageUri: string, imageBase64?: string): Promise<void> => {
     dispatch({ type: 'SET_SCANNED_IMAGE', payload: imageUri });
     dispatch({ type: 'SET_PROCESSING', payload: true });
     try {
-      const result = await parsePrescritionImageAPI(imageUri);
+      const result = await parsePrescritionImageAPI(imageUri, imageBase64);
       dispatch({ type: 'SET_OCR_RESULT', payload: result });
     } catch (error: any) {
       dispatch({ type: 'SET_ERROR', payload: 'AI parsing failed. Please try again.' });
@@ -153,42 +191,51 @@ export const MedicalProvider = ({ children }: { children: React.ReactNode }) => 
   }, []);
 
   /**
-   * Saves the user-verified medication data as a permanent MedicalRecord.
+   * Saves the user-verified medication data to Supabase as a permanent record.
    * Called after the user reviews and confirms the OCR output.
-   *
-   * @param {string} imageUri - The source image URI
-   * @param {ParsedMedication[]} medications - The user-confirmed medications
-   * @param {object} meta - Optional prescription metadata
    */
   const saveVerifiedRecord = useCallback(
-    (
+    async (
       imageUri: string,
       medications: ParsedMedication[],
-      meta: { patientName?: string; prescribedBy?: string; prescribedDate?: string }
-    ): void => {
-      const record: MedicalRecord = {
-        id: `med-${Date.now()}`,
-        imageUri,
-        medications,
-        ...meta,
-        savedAt: new Date().toISOString(),
-      };
-      dispatch({ type: 'SAVE_RECORD', payload: record });
+      meta: { patientName?: string; prescribedBy?: string; prescribedDate?: string; confidence?: number }
+    ): Promise<void> => {
+      if (!user) throw new Error('You must be logged in to save records.');
+      dispatch({ type: 'SET_SAVING', payload: true });
+      try {
+        const payload: CreateMedicalRecordDTO = {
+          image_uri: imageUri,
+          medications,
+          patient_name: meta.patientName,
+          prescribed_by: meta.prescribedBy,
+          prescribed_date: meta.prescribedDate,
+          confidence: meta.confidence,
+        };
+        const saved = await saveMedicalRecordAPI(payload, user.id);
+        dispatch({ type: 'ADD_RECORD', payload: dbToLocal(saved) });
+      } catch (error: any) {
+        dispatch({ type: 'SET_ERROR', payload: 'Could not save record.' });
+        throw error;
+      }
     },
-    []
+    [user]
   );
 
   /**
-   * Removes a saved medical record permanently.
-   * @param {string} id - The record ID to delete
+   * Removes a saved medical record from Supabase and local state.
    */
-  const deleteRecord = useCallback((id: string): void => {
+  const deleteRecord = useCallback(async (id: string): Promise<void> => {
+    // Optimistic UI update
     dispatch({ type: 'DELETE_RECORD', payload: id });
-  }, []);
+    try {
+      await deleteMedicalRecordAPI(id);
+    } catch (error) {
+      console.error('Failed to delete record from DB', error);
+    }
+  }, [user]);
 
   /**
    * Clears the pending OCR result and resets the scanner to its initial state.
-   * Used when the user cancels the verification flow.
    */
   const clearPending = useCallback((): void => {
     dispatch({ type: 'CLEAR_PENDING' });
@@ -196,7 +243,7 @@ export const MedicalProvider = ({ children }: { children: React.ReactNode }) => 
 
   return (
     <MedicalContext.Provider
-      value={{ state, scanPrescription, saveVerifiedRecord, deleteRecord, clearPending }}
+      value={{ state, loadRecords, scanPrescription, saveVerifiedRecord, deleteRecord, clearPending }}
     >
       {children}
     </MedicalContext.Provider>
@@ -207,16 +254,10 @@ export const MedicalProvider = ({ children }: { children: React.ReactNode }) => 
 // CUSTOM HOOK
 // ---------------------------------------------------------------------------
 
-/**
- * Custom hook to access the MedicalContext.
- * @throws {Error} If called outside a MedicalProvider.
- */
 export const useMedical = (): MedicalContextValue => {
   const context = useContext(MedicalContext);
   if (!context) {
-    throw new Error(
-      'useMedical must be used within a <MedicalProvider>. Check your component tree.'
-    );
+    throw new Error('useMedical must be used within a <MedicalProvider>. Check your component tree.');
   }
   return context;
 };

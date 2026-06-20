@@ -74,7 +74,7 @@ const SettingsRow = ({
  * ProfileSetting — Account and app settings screen.
  * Toggle notifications, language, theme, and manage account actions.
  */
-export default function ProfileSetting(): JSX.Element {
+export default function ProfileSetting(): React.JSX.Element {
   const { user } = useAuth();
 
   // Local toggle states (would persist via AsyncStorage in production)

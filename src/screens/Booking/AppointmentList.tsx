@@ -29,6 +29,9 @@ import {
   Alert,
   StatusBar,
   SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -46,11 +49,11 @@ import CustomButton from '../../components/CustomButton';
 
 const STATUS_CONFIG: Record<
   Appointment['status'],
-  { bg: string; text: string; icon: keyof typeof Ionicons.glyphMap }
+  { bg: string; text: string; icon: keyof typeof Ionicons.glyphMap; accentColor: string }
 > = {
-  Upcoming: { bg: '#D1FAE5', text: COLORS.success, icon: 'time-outline' },
-  Completed: { bg: '#E2E8F0', text: COLORS.textLight, icon: 'checkmark-circle-outline' },
-  Cancelled: { bg: '#FEE2E2', text: COLORS.error, icon: 'close-circle-outline' },
+  Upcoming: { bg: '#D1FAE5', text: COLORS.success, icon: 'time-outline', accentColor: COLORS.success },
+  Completed: { bg: '#E2E8F0', text: COLORS.textLight, icon: 'checkmark-circle-outline', accentColor: COLORS.border },
+  Cancelled: { bg: '#FEE2E2', text: COLORS.error, icon: 'close-circle-outline', accentColor: COLORS.error },
 };
 
 // ---------------------------------------------------------------------------
@@ -69,9 +72,13 @@ const AppointmentCard = React.memo(({ item, onManage }: AppointmentCardProps): R
   const parsedDate = item.date ? parseISO(item.date) : null;
 
   return (
-    <View style={[styles.card, (isCompleted || isCancelled) && styles.cardMuted]}>
+    <View style={[
+      styles.card,
+      (isCompleted || isCancelled) && styles.cardMuted,
+      { borderLeftColor: statusConf.accentColor },
+    ]}>
       {/* Date Badge */}
-      <View style={styles.dateBadge}>
+      <View style={[styles.dateBadge, (isCompleted || isCancelled) && styles.dateBadgeMuted]}>
         <Text style={[styles.dateDay, (isCompleted || isCancelled) && styles.textMuted]}>
           {parsedDate ? parsedDate.getDate() : '--'}
         </Text>
@@ -91,7 +98,7 @@ const AppointmentCard = React.memo(({ item, onManage }: AppointmentCardProps): R
           {item.title}
         </Text>
 
-        {/* Relative date (e.g. "Tomorrow", "Today") */}
+        {/* Relative date */}
         {parsedDate && (
           <Text style={styles.relativeDate}>
             <Ionicons name="calendar-outline" size={12} /> {formatRelativeDate(parsedDate)}
@@ -101,14 +108,16 @@ const AppointmentCard = React.memo(({ item, onManage }: AppointmentCardProps): R
 
         {/* Provider + Location */}
         {item.provider && (
-          <Text style={styles.detailText}>
-            <Ionicons name="person-outline" size={12} /> {item.provider}
-          </Text>
+          <View style={styles.detailRow}>
+            <Ionicons name="person-circle-outline" size={13} color={COLORS.textLight} />
+            <Text style={styles.detailText}>{item.provider}</Text>
+          </View>
         )}
         {item.location && (
-          <Text style={styles.detailText} numberOfLines={1}>
-            <Ionicons name="location-outline" size={12} /> {item.location}
-          </Text>
+          <View style={styles.detailRow}>
+            <Ionicons name="location-outline" size={13} color={COLORS.textLight} />
+            <Text style={styles.detailText} numberOfLines={1}>{item.location}</Text>
+          </View>
         )}
 
         {/* Status Badge + Action Button */}
@@ -119,8 +128,8 @@ const AppointmentCard = React.memo(({ item, onManage }: AppointmentCardProps): R
           </View>
           {!isCompleted && !isCancelled && (
             <TouchableOpacity style={styles.manageBtn} onPress={() => onManage(item)}>
+              <Ionicons name="ellipsis-horizontal" size={14} color={COLORS.primary} />
               <Text style={styles.manageBtnText}>Manage</Text>
-              <Ionicons name="chevron-down" size={12} color={COLORS.primary} />
             </TouchableOpacity>
           )}
         </View>
@@ -146,6 +155,8 @@ export default function AppointmentList(): React.JSX.Element {
   const [modalVisible, setModalVisible] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newProvider, setNewProvider] = useState('');
+  const [newLocation, setNewLocation] = useState('');
+  const [newNotes, setNewNotes] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -165,13 +176,14 @@ export default function AppointmentList(): React.JSX.Element {
   const resetModal = useCallback((): void => {
     setNewTitle('');
     setNewProvider('');
+    setNewLocation('');
+    setNewNotes('');
     setSelectedDate(new Date());
     setTitleError('');
     setModalVisible(false);
   }, []);
 
   const handleSaveAppointment = useCallback(async (): Promise<void> => {
-    // Validate using pure utility functions
     if (!isRequired(newTitle)) {
       setTitleError('Please enter the appointment reason.');
       return;
@@ -187,6 +199,8 @@ export default function AppointmentList(): React.JSX.Element {
         title: newTitle.trim(),
         date: selectedDate.toISOString(),
         provider: newProvider.trim() || undefined,
+        location: newLocation.trim() || undefined,
+        notes: newNotes.trim() || undefined,
       });
       resetModal();
     } catch {
@@ -232,34 +246,64 @@ export default function AppointmentList(): React.JSX.Element {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.gradientStart} />
 
-      {/* ── STATS BANNER ── */}
-      <View style={styles.statsBanner}>
-        <View style={styles.statItem}>
-          <Text style={styles.statNumber}>{upcomingCount}</Text>
-          <Text style={styles.statLabel}>Upcoming</Text>
+      {/* ── GRADIENT HEADER ── */}
+      <View style={styles.headerBg}>
+        <View style={styles.headerDecor1} />
+        <View style={styles.headerDecor2} />
+        <View style={styles.headerContent}>
+          <View>
+            <Text style={styles.headerTitle}>My Schedule</Text>
+            <Text style={styles.headerSubtitle}>Your upcoming care appointments</Text>
+          </View>
+          {state.appointments.length > 0 && (
+            <TouchableOpacity
+              style={styles.headerAddBtn}
+              onPress={() => setModalVisible(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="add" size={22} color={COLORS.surface} />
+            </TouchableOpacity>
+          )}
         </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={styles.statNumber}>{completedCount}</Text>
-          <Text style={styles.statLabel}>Completed</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={styles.statNumber}>{state.appointments.length}</Text>
-          <Text style={styles.statLabel}>Total</Text>
+
+        {/* ── STATS BANNER ── */}
+        <View style={styles.statsBanner}>
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>{upcomingCount}</Text>
+            <Text style={styles.statLabel}>Upcoming</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>{completedCount}</Text>
+            <Text style={styles.statLabel}>Completed</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>{state.appointments.length}</Text>
+            <Text style={styles.statLabel}>Total</Text>
+          </View>
         </View>
       </View>
 
       {/* ── APPOINTMENT LIST ── */}
       {state.appointments.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Ionicons name="calendar-outline" size={64} color={COLORS.border} />
+          <View style={styles.emptyIconWrap}>
+            <Ionicons name="calendar-outline" size={44} color={COLORS.primary} />
+          </View>
           <Text style={styles.emptyTitle}>No Appointments Yet</Text>
           <Text style={styles.emptySubtitle}>
             Tap the + button to schedule your first care appointment
           </Text>
+          <TouchableOpacity
+            style={styles.emptyAddBtn}
+            onPress={() => setModalVisible(true)}
+          >
+            <Ionicons name="add-circle" size={18} color={COLORS.surface} />
+            <Text style={styles.emptyAddBtnText}>Book First Appointment</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <FlatList
@@ -274,74 +318,102 @@ export default function AppointmentList(): React.JSX.Element {
         />
       )}
 
-      {/* ── FLOATING ACTION BUTTON ── */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => setModalVisible(true)}
-        activeOpacity={0.85}
-      >
-        <Ionicons name="add" size={28} color={COLORS.surface} />
-      </TouchableOpacity>
-
       {/* ── ADD APPOINTMENT MODAL ── */}
       <Modal visible={modalVisible} animationType="slide" transparent statusBarTranslucent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            {/* Modal Handle */}
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Book New Appointment</Text>
+        <KeyboardAvoidingView
+          style={styles.modalKeyboardView}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              {/* Modal Handle */}
+              <View style={styles.modalHandle} />
 
-            <CustomInput
-              label="Appointment Reason *"
-              value={newTitle}
-              onChangeText={(t) => { setNewTitle(t); setTitleError(''); }}
-              iconName="clipboard-outline"
-              error={titleError}
-            />
+              <View style={styles.modalTitleRow}>
+                <View style={styles.modalTitleIcon}>
+                  <Ionicons name="calendar-outline" size={18} color={COLORS.primary} />
+                </View>
+                <Text style={styles.modalTitle}>Book Appointment</Text>
+              </View>
 
-            <CustomInput
-              label="Care Provider (optional)"
-              value={newProvider}
-              onChangeText={setNewProvider}
-              iconName="person-outline"
-            />
+              {/* Scrollable form */}
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                bounces={false}
+                contentContainerStyle={styles.modalScrollContent}
+              >
+                <CustomInput
+                  label="Appointment Reason *"
+                  value={newTitle}
+                  onChangeText={(t) => { setNewTitle(t); setTitleError(''); }}
+                  iconName="clipboard-outline"
+                  error={titleError}
+                />
 
-            {/* Date Selector */}
-            <Text style={styles.inputLabel}>Appointment Date *</Text>
-            <TouchableOpacity
-              style={styles.dateSelector}
-              onPress={() => setShowDatePicker(true)}
-            >
-              <Ionicons name="calendar" size={20} color={COLORS.primary} />
-              <Text style={styles.dateSelectorText}>{formatDate(selectedDate)}</Text>
-              <Ionicons name="chevron-down" size={16} color={COLORS.textLight} />
-            </TouchableOpacity>
+                <CustomInput
+                  label="Care Provider (optional)"
+                  value={newProvider}
+                  onChangeText={setNewProvider}
+                  iconName="person-outline"
+                />
 
-            {showDatePicker && (
-              <DateTimePicker
-                value={selectedDate}
-                mode="date"
-                display="default"
-                onChange={handleDateChange}
-                minimumDate={new Date()} // ← Prevents past-date booking
-              />
-            )}
+                <CustomInput
+                  label="Location / Hospital (optional)"
+                  value={newLocation}
+                  onChangeText={setNewLocation}
+                  iconName="location-outline"
+                />
 
-            <View style={styles.modalActions}>
-              <CustomButton
-                title="Save Appointment"
-                onPress={handleSaveAppointment}
-                loading={isSubmitting}
-              />
-              <CustomButton
-                title="Cancel"
-                variant="outline"
-                onPress={resetModal}
-                disabled={isSubmitting}
-              />
+                {/* Date Selector */}
+                <Text style={styles.inputLabel}>Appointment Date *</Text>
+                <TouchableOpacity
+                  style={styles.dateSelector}
+                  onPress={() => setShowDatePicker(true)}
+                >
+                  <View style={styles.dateSelectorIcon}>
+                    <Ionicons name="calendar" size={16} color={COLORS.primary} />
+                  </View>
+                  <Text style={styles.dateSelectorText}>{formatDate(selectedDate)}</Text>
+                  <Ionicons name="chevron-down" size={16} color={COLORS.textLight} />
+                </TouchableOpacity>
+
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={selectedDate}
+                    mode="date"
+                    display="default"
+                    onChange={handleDateChange}
+                    minimumDate={new Date()}
+                  />
+                )}
+
+                <CustomInput
+                  label="Notes (optional)"
+                  value={newNotes}
+                  onChangeText={setNewNotes}
+                  iconName="document-text-outline"
+                  multiline
+                  numberOfLines={2}
+                />
+
+                <View style={styles.modalActions}>
+                  <CustomButton
+                    title="Save Appointment"
+                    onPress={handleSaveAppointment}
+                    loading={isSubmitting}
+                  />
+                  <CustomButton
+                    title="Cancel"
+                    variant="outline"
+                    onPress={resetModal}
+                    disabled={isSubmitting}
+                  />
+                </View>
+              </ScrollView>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -356,22 +428,74 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background },
   loadingText: { marginTop: 12, fontSize: FONTS.body, color: COLORS.textLight },
 
+  // Header
+  headerBg: {
+    backgroundColor: COLORS.gradientStart,
+    paddingBottom: 0,
+    overflow: 'visible', // Changed from hidden to allow stats banner to overlap
+    zIndex: 10,          // Added zIndex so it renders above the FlatList
+    position: 'relative',
+  },
+  headerDecor1: {
+    position: 'absolute',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    top: -60,
+    right: -50,
+    zIndex: -1,
+  },
+  headerDecor2: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    top: 30,
+    left: -20,
+    zIndex: -1,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SIZES.padding,
+    paddingTop: 16,
+    paddingBottom: 12,
+  },
+  headerTitle: { fontSize: FONTS.h2, fontWeight: '800', color: COLORS.surface, letterSpacing: -0.5 },
+  headerSubtitle: { fontSize: FONTS.caption, color: 'rgba(255,255,255,0.65)', marginTop: 2 },
+  headerAddBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.35)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // Stats
   statsBanner: {
     flexDirection: 'row',
     backgroundColor: COLORS.surface,
-    paddingVertical: 16,
-    paddingHorizontal: SIZES.padding,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    ...SHADOWS.card,
+    marginHorizontal: SIZES.padding,
+    marginTop: 4,
+    marginBottom: -14,
+    borderRadius: SIZES.borderRadius,
+    paddingVertical: 14,
+    ...SHADOWS.cardStrong,
   },
   statItem: { flex: 1, alignItems: 'center' },
   statNumber: { fontSize: FONTS.h2, fontWeight: '800', color: COLORS.primary },
   statLabel: { fontSize: FONTS.micro, color: COLORS.textLight, marginTop: 2, fontWeight: '500' },
   statDivider: { width: 1, backgroundColor: COLORS.border, marginVertical: 4 },
 
-  listContent: { padding: SIZES.padding, paddingBottom: 100 },
+  listContent: { padding: SIZES.padding, paddingTop: 40, paddingBottom: 100 },
 
+  // Appointment Cards
   card: {
     flexDirection: 'row',
     backgroundColor: COLORS.surface,
@@ -379,6 +503,7 @@ const styles = StyleSheet.create({
     padding: SIZES.cardPadding,
     marginBottom: 12,
     gap: 12,
+    borderLeftWidth: 4,
     ...SHADOWS.card,
   },
   cardMuted: { opacity: 0.65 },
@@ -387,20 +512,22 @@ const styles = StyleSheet.create({
     width: 52,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#EFF6FF',
+    backgroundColor: COLORS.primaryTint,
     borderRadius: 10,
-    paddingVertical: 8,
+    paddingVertical: 10,
     alignSelf: 'flex-start',
   },
+  dateBadgeMuted: { backgroundColor: COLORS.borderSoft },
   dateDay: { fontSize: FONTS.h3, fontWeight: '800', color: COLORS.primary },
   dateMonth: { fontSize: FONTS.micro, color: COLORS.primary, fontWeight: '700' },
   textMuted: { color: COLORS.textLight },
 
-  cardBody: { flex: 1, gap: 3 },
+  cardBody: { flex: 1, gap: 4 },
   cardTitle: { fontSize: FONTS.body, fontWeight: '700', color: COLORS.text },
   titleStrikethrough: { textDecorationLine: 'line-through', color: COLORS.textLight },
-  relativeDate: { fontSize: FONTS.micro, color: COLORS.primary, fontWeight: '600', marginTop: 2 },
-  detailText: { fontSize: FONTS.caption, color: COLORS.textLight },
+  relativeDate: { fontSize: FONTS.micro, color: COLORS.primary, fontWeight: '600', marginTop: 1 },
+  detailRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  detailText: { fontSize: FONTS.caption, color: COLORS.textLight, flex: 1 },
 
   cardFooter: {
     flexDirection: 'row',
@@ -413,42 +540,48 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 3,
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: SIZES.pill,
   },
   statusText: { fontSize: FONTS.micro, fontWeight: '700' },
   manageBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
+    gap: 4,
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    backgroundColor: '#EFF6FF',
+    paddingVertical: 5,
+    backgroundColor: COLORS.primaryTint,
     borderRadius: SIZES.pill,
   },
   manageBtnText: { fontSize: FONTS.micro, fontWeight: '700', color: COLORS.primary },
 
-  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
-  emptyTitle: { fontSize: FONTS.h3, fontWeight: '700', color: COLORS.text, marginTop: 16 },
-  emptySubtitle: { fontSize: FONTS.caption, color: COLORS.textLight, textAlign: 'center', marginTop: 8 },
-
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: COLORS.primary,
+  // Empty State
+  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40, marginTop: 20 },
+  emptyIconWrap: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: COLORS.primaryTint,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
+    marginBottom: 16,
   },
+  emptyTitle: { fontSize: FONTS.h3, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
+  emptySubtitle: { fontSize: FONTS.caption, color: COLORS.textLight, textAlign: 'center', marginBottom: 24, lineHeight: 20 },
+  emptyAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: COLORS.primary,
+    borderRadius: SIZES.pill,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    ...SHADOWS.button,
+  },
+  emptyAddBtnText: { fontSize: FONTS.body, fontWeight: '700', color: COLORS.surface },
 
+  // Modal
+  modalKeyboardView: { flex: 1, justifyContent: 'flex-end' },
   modalOverlay: {
     flex: 1,
     backgroundColor: COLORS.overlay,
@@ -458,10 +591,12 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    padding: 24,
-    paddingBottom: 36,
+    paddingTop: 20,
+    paddingHorizontal: 24,
+    maxHeight: '92%',
     ...SHADOWS.modal,
   },
+  modalScrollContent: { paddingBottom: 36 },
   modalHandle: {
     width: 36,
     height: 4,
@@ -470,7 +605,21 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginBottom: 20,
   },
-  modalTitle: { fontSize: FONTS.h2, fontWeight: '800', color: COLORS.text, marginBottom: 20 },
+  modalTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 20,
+  },
+  modalTitleIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: COLORS.primaryTint,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalTitle: { fontSize: FONTS.h2, fontWeight: '800', color: COLORS.text },
   inputLabel: { fontSize: FONTS.caption, fontWeight: '600', color: COLORS.textLight, marginBottom: 8 },
   dateSelector: {
     flexDirection: 'row',
@@ -482,6 +631,14 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     marginBottom: 24,
     gap: 10,
+  },
+  dateSelectorIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: COLORS.primaryTint,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   dateSelectorText: { flex: 1, fontSize: FONTS.body, color: COLORS.text, fontWeight: '500' },
   modalActions: { gap: 0, marginTop: 4 },

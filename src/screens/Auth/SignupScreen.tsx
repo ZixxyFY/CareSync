@@ -12,7 +12,7 @@
  * ALL network logic is in authService.tsx via AuthContext.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -22,13 +22,14 @@ import {
   ScrollView,
   TouchableOpacity,
   StatusBar,
+  Animated,
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
 import CustomInput from '../../components/CustomInput';
 import CustomButton from '../../components/CustomButton';
 import { useAuth } from '../../context/AuthContext';
-import { COLORS, FONTS, SIZES } from '../../constants/theme';
+import { COLORS, FONTS, SIZES, SHADOWS } from '../../constants/theme';
 import { isValidEmail, isValidPassword, isValidName } from '../../utils/validations';
 
 // ---------------------------------------------------------------------------
@@ -55,6 +56,13 @@ interface FormErrors {
   confirmPassword?: string;
 }
 
+// Role metadata with colors
+const ROLE_META: { label: string; value: Role; icon: keyof typeof Ionicons.glyphMap; color: string; bg: string; description: string }[] = [
+  { label: 'Caregiver', value: 'Caregiver', icon: 'people', color: COLORS.success, bg: '#D1FAE5', description: 'Supporting a loved one' },
+  { label: 'Patient', value: 'Patient', icon: 'person', color: COLORS.primary, bg: COLORS.primaryTint, description: 'Managing my own care' },
+  { label: 'Provider', value: 'Provider', icon: 'medical', color: COLORS.warning, bg: '#FEF3C7', description: 'Healthcare professional' },
+];
+
 // ---------------------------------------------------------------------------
 // COMPONENT
 // ---------------------------------------------------------------------------
@@ -63,20 +71,28 @@ interface FormErrors {
  * SignupScreen — Allows new users to create a CareSync account.
  * Role selection (Patient / Caregiver / Provider) drives personalized features.
  */
-export default function SignupScreen({ navigation }: SignupScreenProps): JSX.Element {
+export default function SignupScreen({ navigation }: SignupScreenProps): React.JSX.Element {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [selectedRole, setSelectedRole] = useState<Role>('Caregiver');
   const [errors, setErrors] = useState<FormErrors>({});
-  const { signup, isLoading } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { signup } = useAuth();
 
-  const ROLES: { label: string; value: Role; icon: keyof typeof Ionicons.glyphMap }[] = [
-    { label: 'Caregiver', value: 'Caregiver', icon: 'people-outline' },
-    { label: 'Patient', value: 'Patient', icon: 'person-outline' },
-    { label: 'Provider', value: 'Provider', icon: 'medical-outline' },
-  ];
+  // Entrance animations
+  const headerAnim = useRef(new Animated.Value(0)).current;
+  const formAnim = useRef(new Animated.Value(30)).current;
+  const formOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(headerAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+      Animated.spring(formAnim, { toValue: 0, tension: 50, friction: 9, useNativeDriver: true }),
+      Animated.timing(formOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
+    ]).start();
+  }, []);
 
   // ---------------------------------------------------------------------------
   // VALIDATION
@@ -108,12 +124,14 @@ export default function SignupScreen({ navigation }: SignupScreenProps): JSX.Ele
 
   const handleSignup = async (): Promise<void> => {
     if (!validateForm()) return;
-
+    setIsSubmitting(true);
     try {
       await signup(name, email, password, selectedRole);
-      // On success, AuthContext.user is set → root navigator switches automatically
+      // Navigation is handled automatically by the root navigator watching AuthContext.user
     } catch (error: any) {
       Alert.alert('Registration Failed', error.message, [{ text: 'OK' }]);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -126,44 +144,66 @@ export default function SignupScreen({ navigation }: SignupScreenProps): JSX.Ele
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.gradientStart} />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* ── BACK BUTTON ── */}
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-        </TouchableOpacity>
+        {/* ── HERO HEADER ── */}
+        <View style={styles.heroHeader}>
+          <View style={[styles.decorCircle, styles.decorCircle1]} />
+          <View style={[styles.decorCircle, styles.decorCircle2]} />
 
-        {/* ── HEADER ── */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Create Account</Text>
-          <Text style={styles.headerSubtitle}>Join CareSync to coordinate care better</Text>
+          <Animated.View style={{ opacity: headerAnim }}>
+            <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+              <View style={styles.backButtonInner}>
+                <Ionicons name="arrow-back" size={20} color={COLORS.surface} />
+              </View>
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Create Account</Text>
+            <Text style={styles.headerSubtitle}>Join CareSync to coordinate care better</Text>
+          </Animated.View>
         </View>
 
         {/* ── FORM CARD ── */}
-        <View style={styles.formCard}>
+        <Animated.View
+          style={[
+            styles.formCard,
+            { opacity: formOpacity, transform: [{ translateY: formAnim }] },
+          ]}
+        >
           {/* Role Selector */}
           <Text style={styles.sectionLabel}>I am a...</Text>
           <View style={styles.roleContainer}>
-            {ROLES.map((role) => {
+            {ROLE_META.map((role) => {
               const isActive = selectedRole === role.value;
               return (
                 <TouchableOpacity
                   key={role.value}
-                  style={[styles.roleChip, isActive && styles.roleChipActive]}
+                  style={[
+                    styles.roleCard,
+                    isActive && { borderColor: role.color, backgroundColor: role.bg },
+                  ]}
                   onPress={() => setSelectedRole(role.value)}
+                  activeOpacity={0.7}
                 >
-                  <Ionicons
-                    name={role.icon}
-                    size={18}
-                    color={isActive ? COLORS.surface : COLORS.textLight}
-                  />
-                  <Text style={[styles.roleChipText, isActive && styles.roleChipTextActive]}>
+                  <View
+                    style={[
+                      styles.roleIconWrap,
+                      { backgroundColor: isActive ? role.color : COLORS.border },
+                    ]}
+                  >
+                    <Ionicons
+                      name={role.icon}
+                      size={18}
+                      color={isActive ? COLORS.surface : COLORS.textLight}
+                    />
+                  </View>
+                  <Text style={[styles.roleLabel, isActive && { color: role.color }]}>
                     {role.label}
                   </Text>
+                  <Text style={styles.roleDescription}>{role.description}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -207,15 +247,15 @@ export default function SignupScreen({ navigation }: SignupScreenProps): JSX.Ele
           <CustomButton
             title="Create Account"
             onPress={handleSignup}
-            loading={isLoading}
+            loading={isSubmitting}
           />
-        </View>
+        </Animated.View>
 
         {/* ── FOOTER ── */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>Already have an account? </Text>
           <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-            <Text style={styles.footerLink}>Sign In</Text>
+            <Text style={styles.footerLink}>Sign In →</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -228,66 +268,112 @@ export default function SignupScreen({ navigation }: SignupScreenProps): JSX.Ele
 // ---------------------------------------------------------------------------
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.background },
-  scrollContent: { flexGrow: 1, padding: SIZES.padding },
-  backButton: {
-    marginBottom: 8,
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
+  safe: { flex: 1, backgroundColor: COLORS.gradientStart },
+  scrollContent: { flexGrow: 1 },
+
+  // Hero Header
+  heroHeader: {
+    backgroundColor: COLORS.gradientStart,
+    paddingTop: 20,
+    paddingHorizontal: SIZES.padding,
+    paddingBottom: 36,
+    overflow: 'hidden',
+    position: 'relative',
   },
-  header: { marginBottom: 24 },
-  headerTitle: { fontSize: FONTS.h1, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
-  headerSubtitle: { fontSize: FONTS.caption, color: COLORS.textLight, marginTop: 4 },
+  decorCircle: {
+    position: 'absolute',
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  decorCircle1: { width: 200, height: 200, top: -80, right: -60 },
+  decorCircle2: { width: 120, height: 120, bottom: -40, left: -20 },
+  backButton: { marginBottom: 16 },
+  backButtonInner: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: FONTS.h1,
+    fontWeight: '800',
+    color: COLORS.surface,
+    letterSpacing: -0.5,
+  },
+  headerSubtitle: {
+    fontSize: FONTS.caption,
+    color: 'rgba(255,255,255,0.7)',
+    marginTop: 4,
+  },
+
+  // Form Card
   formCard: {
     backgroundColor: COLORS.surface,
-    borderRadius: 20,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     padding: 24,
-    shadowColor: '#0EA5E9',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 5,
-    marginBottom: 24,
+    flex: 1,
+    ...SHADOWS.modal,
   },
+
   sectionLabel: {
     fontSize: FONTS.caption,
-    fontWeight: '600',
+    fontWeight: '700',
     color: COLORS.textLight,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 12,
   },
+
+  // Role Cards
   roleContainer: {
     flexDirection: 'row',
     gap: 8,
     marginBottom: 20,
   },
-  roleChip: {
+  roleCard: {
     flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    paddingVertical: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
     borderRadius: SIZES.borderRadius,
     borderWidth: 1.5,
     borderColor: COLORS.border,
     backgroundColor: COLORS.background,
+    gap: 4,
   },
-  roleChipActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
+  roleIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 2,
   },
-  roleChipText: {
-    fontSize: 12,
-    fontWeight: '600',
+  roleLabel: {
+    fontSize: 11,
+    fontWeight: '700',
     color: COLORS.textLight,
   },
-  roleChipTextActive: {
-    color: COLORS.surface,
+  roleDescription: {
+    fontSize: 9,
+    color: COLORS.textLight,
+    textAlign: 'center',
+    lineHeight: 12,
   },
-  footer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    paddingVertical: 20,
+    paddingBottom: 36,
+  },
   footerText: { fontSize: FONTS.caption, color: COLORS.textLight },
   footerLink: { fontSize: FONTS.caption, color: COLORS.primary, fontWeight: '700' },
 });

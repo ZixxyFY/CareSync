@@ -29,7 +29,7 @@ const Stack = createStackNavigator<UnauthorizedStackParamList>();
  * Once AuthContext.user is set (after login/signup), the root navigator
  * in App.tsx automatically replaces this with AuthorizedNav.
  */
-export default function UnauthorizedNav(): JSX.Element {
+export default function UnauthorizedNav(): React.JSX.Element {
   return (
     <Stack.Navigator
       screenOptions={{

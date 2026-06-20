@@ -20,7 +20,10 @@ import {
   createAppointmentAPI,
   Appointment,
   CreateAppointmentDTO,
+  deleteAppointmentAPI,
+  updateAppointmentStatusAPI
 } from '../services/bookingService';
+import { useAuth } from './AuthContext';
 
 // ---------------------------------------------------------------------------
 // STATE SHAPE & ACTION TYPES
@@ -132,20 +135,22 @@ const BookingContext = createContext<BookingContextValue | null>(null);
  */
 export const BookingProvider = ({ children }: { children: React.ReactNode }) => {
   const [state, dispatch] = useReducer(bookingReducer, initialState);
+  const { user } = useAuth();
 
   /**
    * Fetches all appointments from the server and populates the local state.
    * Should be called on the AppointmentList screen's initial mount.
    */
   const loadAppointments = useCallback(async (): Promise<void> => {
+    if (!user) return;
     dispatch({ type: 'SET_LOADING', payload: true });
     try {
-      const data = await fetchAppointmentsAPI();
+      const data = await fetchAppointmentsAPI(user.id);
       dispatch({ type: 'SET_APPOINTMENTS', payload: data });
     } catch (error: any) {
       dispatch({ type: 'SET_ERROR', payload: 'Failed to load appointments. Please try again.' });
     }
-  }, []);
+  }, [user]);
 
   /**
    * Creates a new appointment via the service and optimistically updates local state.
@@ -153,39 +158,54 @@ export const BookingProvider = ({ children }: { children: React.ReactNode }) => 
    * @param {CreateAppointmentDTO} data - The appointment details to create.
    */
   const addAppointment = useCallback(async (data: CreateAppointmentDTO): Promise<void> => {
+    if (!user) {
+      console.error('[BookingContext] addAppointment called without an authenticated user.');
+      throw new Error('You must be logged in to add an appointment.');
+    }
     dispatch({ type: 'SET_LOADING', payload: true });
     try {
-      const newAppt = await createAppointmentAPI(data);
+      const newAppt = await createAppointmentAPI(data, user.id);
       dispatch({ type: 'ADD_APPOINTMENT', payload: newAppt });
     } catch (error: any) {
       dispatch({ type: 'SET_ERROR', payload: 'Could not create appointment.' });
       throw error; // Re-throw so the UI can show an inline alert
     }
-  }, []);
+  }, [user]); // ← FIXED: must depend on `user` so we always use the current auth state
 
   /**
    * Updates the status of an existing appointment (e.g., mark as 'Completed').
-   * This is a synchronous local state update (optimistic update pattern).
+   * Optimistic update: local state updates immediately, DB sync in background.
    *
    * @param {string} id - The appointment ID to update.
    * @param {Appointment['status']} status - The new status.
    */
   const updateAppointmentStatus = useCallback(
-    (id: string, status: Appointment['status']): void => {
+    async (id: string, status: Appointment['status']): Promise<void> => {
+      // 1. Update local UI instantly (optimistic)
       dispatch({ type: 'UPDATE_STATUS', payload: { id, status } });
+      // 2. Persist to database in the background
+      try {
+        await updateAppointmentStatusAPI(id, status);
+      } catch (error) {
+        console.error('Failed to update status in DB', error);
+      }
     },
-    []
+    [user] // ← FIXED: depend on user for correctness
   );
 
   /**
-   * Removes an appointment from local state.
-   * In a real app, this would first call the API to delete server-side.
+   * Removes an appointment from local state and Supabase.
    *
    * @param {string} id - The appointment ID to delete.
    */
-  const deleteAppointment = useCallback((id: string): void => {
+  const deleteAppointment = useCallback(async (id: string): Promise<void> => {
     dispatch({ type: 'DELETE_APPOINTMENT', payload: id });
-  }, []);
+    try {
+      await deleteAppointmentAPI(id);
+    } catch (error) {
+      console.error('Failed to delete from DB', error);
+    }
+  }, [user]); // ← FIXED: depend on user for correctness
 
   const contextValue: BookingContextValue = {
     state,

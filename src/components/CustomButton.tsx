@@ -110,7 +110,7 @@ export default function CustomButton({
   loading = false,
   disabled = false,
   style,
-}: CustomButtonProps): JSX.Element {
+}: CustomButtonProps): React.JSX.Element {
   const config = VARIANT_CONFIG[variant];
 
   return (

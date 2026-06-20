@@ -76,7 +76,7 @@ export default function CustomInput({
   autoCapitalize = 'sentences',
   iconName,
   editable = true,
-}: CustomInputProps): JSX.Element {
+}: CustomInputProps): React.JSX.Element {
   // Local UI state: password visibility toggle (single responsibility for this component)
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 

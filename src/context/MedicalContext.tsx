@@ -11,7 +11,7 @@
  */
 
 import React, { createContext, useReducer, useContext, useCallback } from 'react';
-import { parsePrescritionImageAPI, OCRParseResult, ParsedMedication } from '../services/ocrService';
+import { parsePrescriptionImageAPI, OCRParseResult, ParsedMedication } from '../services/ocrService';
 import {
   MedicalRecordDB,
   CreateMedicalRecordDTO,
@@ -25,10 +25,6 @@ import { useAuth } from './AuthContext';
 // TYPE DEFINITIONS
 // ---------------------------------------------------------------------------
 
-/**
- * @typedef {Object} MedicalRecord
- * Represents a saved, user-confirmed medical record (mirrors DB schema).
- */
 export interface MedicalRecord {
   id: string;
   imageUri?: string;
@@ -42,9 +38,7 @@ export interface MedicalRecord {
 
 interface MedicalState {
   records: MedicalRecord[];
-  /** Current OCR parse result — populated while the user is verifying */
   pendingOCRResult: OCRParseResult | null;
-  /** URI of the image currently being processed */
   scannedImageUri: string | null;
   isProcessing: boolean;
   isLoadingRecords: boolean;
@@ -54,7 +48,7 @@ interface MedicalState {
 
 type MedicalAction =
   | { type: 'SET_PROCESSING'; payload: boolean }
-  | { type: 'SET_SCANNED_IMAGE'; payload: string }
+  | { type: 'SET_SCANNED_IMAGE'; payload: string | null }
   | { type: 'SET_OCR_RESULT'; payload: OCRParseResult }
   | { type: 'CLEAR_PENDING' }
   | { type: 'SET_LOADING_RECORDS'; payload: boolean }
@@ -121,7 +115,8 @@ const medicalReducer = (state: MedicalState, action: MedicalAction): MedicalStat
 interface MedicalContextValue {
   state: MedicalState;
   loadRecords: () => Promise<void>;
-  scanPrescription: (imageUri: string, imageBase64?: string) => Promise<void>;
+  processPrescription: (imageBase64: string) => Promise<void>;
+  setScannedImageUri: (uri: string | null) => void;
   saveVerifiedRecord: (
     imageUri: string,
     medications: ParsedMedication[],
@@ -133,9 +128,6 @@ interface MedicalContextValue {
 
 const MedicalContext = createContext<MedicalContextValue | null>(null);
 
-// ---------------------------------------------------------------------------
-// HELPER: map DB record → local MedicalRecord shape
-// ---------------------------------------------------------------------------
 const dbToLocal = (db: MedicalRecordDB): MedicalRecord => ({
   id: db.id,
   imageUri: db.image_uri,
@@ -147,17 +139,10 @@ const dbToLocal = (db: MedicalRecordDB): MedicalRecord => ({
   savedAt: db.saved_at,
 });
 
-// ---------------------------------------------------------------------------
-// PROVIDER
-// ---------------------------------------------------------------------------
-
 export const MedicalProvider = ({ children }: { children: React.ReactNode }) => {
   const [state, dispatch] = useReducer(medicalReducer, initialState);
   const { user } = useAuth();
 
-  /**
-   * Loads all saved medical records from Supabase for the current user.
-   */
   const loadRecords = useCallback(async (): Promise<void> => {
     if (!user) return;
     dispatch({ type: 'SET_LOADING_RECORDS', payload: true });
@@ -169,20 +154,14 @@ export const MedicalProvider = ({ children }: { children: React.ReactNode }) => 
     }
   }, [user]);
 
-  /**
-   * Initiates the OCR pipeline:
-   * 1. Stores the image URI in state for display
-   * 2. Sets isProcessing = true (triggers loading UI)
-   * 3. Calls the ocrService (2-second mock AI delay)
-   * 4. Stores the parse result for user verification
-   *
-   * @param {string} imageUri - Local URI from expo-image-picker
-   */
-  const scanPrescription = useCallback(async (imageUri: string, imageBase64?: string): Promise<void> => {
-    dispatch({ type: 'SET_SCANNED_IMAGE', payload: imageUri });
+  const setScannedImageUri = useCallback((uri: string | null) => {
+    dispatch({ type: 'SET_SCANNED_IMAGE', payload: uri });
+  }, []);
+
+  const processPrescription = useCallback(async (imageBase64: string): Promise<void> => {
     dispatch({ type: 'SET_PROCESSING', payload: true });
     try {
-      const result = await parsePrescritionImageAPI(imageUri, imageBase64);
+      const result = await parsePrescriptionImageAPI(imageBase64);
       dispatch({ type: 'SET_OCR_RESULT', payload: result });
     } catch (error: any) {
       dispatch({ type: 'SET_ERROR', payload: 'AI parsing failed. Please try again.' });
@@ -190,10 +169,6 @@ export const MedicalProvider = ({ children }: { children: React.ReactNode }) => 
     }
   }, []);
 
-  /**
-   * Saves the user-verified medication data to Supabase as a permanent record.
-   * Called after the user reviews and confirms the OCR output.
-   */
   const saveVerifiedRecord = useCallback(
     async (
       imageUri: string,
@@ -221,11 +196,7 @@ export const MedicalProvider = ({ children }: { children: React.ReactNode }) => 
     [user]
   );
 
-  /**
-   * Removes a saved medical record from Supabase and local state.
-   */
   const deleteRecord = useCallback(async (id: string): Promise<void> => {
-    // Optimistic UI update
     dispatch({ type: 'DELETE_RECORD', payload: id });
     try {
       await deleteMedicalRecordAPI(id);
@@ -234,25 +205,26 @@ export const MedicalProvider = ({ children }: { children: React.ReactNode }) => 
     }
   }, [user]);
 
-  /**
-   * Clears the pending OCR result and resets the scanner to its initial state.
-   */
   const clearPending = useCallback((): void => {
     dispatch({ type: 'CLEAR_PENDING' });
   }, []);
 
   return (
     <MedicalContext.Provider
-      value={{ state, loadRecords, scanPrescription, saveVerifiedRecord, deleteRecord, clearPending }}
+      value={{
+        state,
+        loadRecords,
+        processPrescription,
+        setScannedImageUri,
+        saveVerifiedRecord,
+        deleteRecord,
+        clearPending,
+      }}
     >
       {children}
     </MedicalContext.Provider>
   );
 };
-
-// ---------------------------------------------------------------------------
-// CUSTOM HOOK
-// ---------------------------------------------------------------------------
 
 export const useMedical = (): MedicalContextValue => {
   const context = useContext(MedicalContext);

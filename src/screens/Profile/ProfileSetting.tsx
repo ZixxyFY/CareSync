@@ -285,12 +285,12 @@ export default function ProfileSetting(): React.JSX.Element {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  scrollContent: { padding: SIZES.padding, paddingBottom: 32 },
+  scrollContent: { padding: SIZES.padding, paddingTop: 40, paddingBottom: 48 },
   screenTitle: {
     fontSize: FONTS.h1,
     fontWeight: '800',
     color: COLORS.text,
-    marginBottom: 20,
+    marginBottom: 24,
     letterSpacing: -0.5,
   },
   sectionLabel: {
@@ -305,14 +305,14 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: COLORS.surface,
     borderRadius: SIZES.borderRadius,
-    marginBottom: 20,
+    marginBottom: 24,
     overflow: 'hidden',
     ...SHADOWS.card,
   },
   settingsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: SIZES.cardPadding,
+    padding: SIZES.cardPadding + 4,
     gap: 12,
   },
   rowIcon: {

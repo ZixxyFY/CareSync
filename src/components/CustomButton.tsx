@@ -142,16 +142,16 @@ export default function CustomButton({
 const styles = StyleSheet.create({
   button: {
     borderRadius: SIZES.pill,
-    marginBottom: 12,
+    marginBottom: 16,
     overflow: 'hidden',
   } as ViewStyle,
   primaryShadow: SHADOWS.button as ViewStyle,
   content: {
-    paddingVertical: 6,
-    minHeight: 48,
+    paddingVertical: 8,
+    minHeight: 52,
   },
   label: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.5,
   } as TextStyle,

@@ -150,7 +150,7 @@ export default function CustomInput({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   input: {
     backgroundColor: COLORS.surface,
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
   errorText: {
     color: COLORS.error,
     fontSize: 12,
-    marginTop: 4,
+    marginTop: 6,
     marginLeft: 4,
     fontWeight: '500',
   },

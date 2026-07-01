@@ -13,7 +13,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const withTimeout = <T,>(promise: Promise<T>, operationName: string, timeoutMs = 15000): Promise<T> => {
-  let timeoutHandle: NodeJS.Timeout;
+  let timeoutHandle: ReturnType<typeof setTimeout>;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutHandle = setTimeout(() => {
       reject(new Error(`Network request timed out during: ${operationName}. Please check your internet connection or firewall settings.`));
@@ -138,7 +138,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     console.log('[AuthContext] Upserting profile into users table:', newProfile);
     // Step 2: Insert profile row
     const { error: dbError } = await withTimeout(
-      supabase.from('users').upsert([newProfile]),
+      Promise.resolve(supabase.from('users').upsert([newProfile])),
       'Create Profile (Database)'
     );
     

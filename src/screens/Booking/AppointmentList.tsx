@@ -3,18 +3,8 @@
  * @file AppointmentList.tsx
  * @description Main appointments listing screen — the core of the Booking Engine.
  *
- * SOLID Principle: Single Responsibility (SRP) — This "dumb" component manages
- * ONLY local UI state:
- *   - Modal open/close
- *   - Form input text (newTitle)
- *   - Date picker visibility
- *   - Submit loading indicator
- *
- * ALL business logic (add, update, delete) is delegated to BookingContext.
- * ALL date formatting is handled by transformDate.tsx utilities.
- * ALL validation is handled by validations.tsx utilities.
- *
- * This screen reads from BookingContext.state.appointments and renders them.
+ * Implements the CareSync Premium UI design with LinearGradients, custom fonts,
+ * and glassmorphism styling.
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -35,29 +25,29 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useBooking } from '../../context/BookingContext';
 import { Appointment } from '../../services/bookingService';
-import { COLORS, FONTS, SIZES, SHADOWS } from '../../constants/theme';
 import { formatDate, formatRelativeDate, parseISO } from '../../utils/transformDate';
 import { isRequired, isFutureOrTodayDate } from '../../utils/validations';
 import CustomInput from '../../components/CustomInput';
 import CustomButton from '../../components/CustomButton';
 
 // ---------------------------------------------------------------------------
-// APPOINTMENT STATUS CONFIG (Open/Closed — add new statuses here only)
+// APPOINTMENT STATUS CONFIG
 // ---------------------------------------------------------------------------
 
 const STATUS_CONFIG: Record<
   Appointment['status'],
   { bg: string; text: string; icon: keyof typeof Ionicons.glyphMap; accentColor: string }
 > = {
-  Upcoming: { bg: '#D1FAE5', text: COLORS.success, icon: 'time-outline', accentColor: COLORS.success },
-  Completed: { bg: '#E2E8F0', text: COLORS.textLight, icon: 'checkmark-circle-outline', accentColor: COLORS.border },
-  Cancelled: { bg: '#FEE2E2', text: COLORS.error, icon: 'close-circle-outline', accentColor: COLORS.error },
+  Upcoming: { bg: '#eef0ff', text: '#006591', icon: 'time-outline', accentColor: '#006591' },
+  Completed: { bg: '#f2f3ff', text: '#6e7881', icon: 'checkmark-circle-outline', accentColor: '#bec8d2' },
+  Cancelled: { bg: '#ffdad6', text: '#ba1a1a', icon: 'close-circle-outline', accentColor: '#ba1a1a' },
 };
 
 // ---------------------------------------------------------------------------
-// APPOINTMENT CARD (SRP — rendering only)
+// APPOINTMENT CARD
 // ---------------------------------------------------------------------------
 
 interface AppointmentCardProps {
@@ -98,7 +88,6 @@ const AppointmentCard = React.memo(({ item, onManage }: AppointmentCardProps): R
           {item.title}
         </Text>
 
-        {/* Relative date */}
         {parsedDate && (
           <Text style={styles.relativeDate}>
             <Ionicons name="calendar-outline" size={12} /> {formatRelativeDate(parsedDate)}
@@ -106,16 +95,15 @@ const AppointmentCard = React.memo(({ item, onManage }: AppointmentCardProps): R
           </Text>
         )}
 
-        {/* Provider + Location */}
         {item.provider && (
           <View style={styles.detailRow}>
-            <Ionicons name="person-circle-outline" size={13} color={COLORS.textLight} />
+            <Ionicons name="person-circle-outline" size={13} color="#6e7881" />
             <Text style={styles.detailText}>{item.provider}</Text>
           </View>
         )}
         {item.location && (
           <View style={styles.detailRow}>
-            <Ionicons name="location-outline" size={13} color={COLORS.textLight} />
+            <Ionicons name="location-outline" size={13} color="#6e7881" />
             <Text style={styles.detailText} numberOfLines={1}>{item.location}</Text>
           </View>
         )}
@@ -128,7 +116,7 @@ const AppointmentCard = React.memo(({ item, onManage }: AppointmentCardProps): R
           </View>
           {!isCompleted && !isCancelled && (
             <TouchableOpacity style={styles.manageBtn} onPress={() => onManage(item)}>
-              <Ionicons name="ellipsis-horizontal" size={14} color={COLORS.primary} />
+              <Ionicons name="ellipsis-horizontal" size={14} color="#006591" />
               <Text style={styles.manageBtnText}>Manage</Text>
             </TouchableOpacity>
           )}
@@ -142,16 +130,10 @@ const AppointmentCard = React.memo(({ item, onManage }: AppointmentCardProps): R
 // MAIN SCREEN
 // ---------------------------------------------------------------------------
 
-/**
- * AppointmentList — Displays the user's care schedule with add/manage capabilities.
- * Uses a FlatList for performant rendering of long appointment lists.
- * A bottom-sheet modal enables creating new appointments with a date picker.
- */
 export default function AppointmentList(): React.JSX.Element {
   const { state, loadAppointments, addAppointment, updateAppointmentStatus, deleteAppointment } =
     useBooking();
 
-  // --- Local UI State (SRP) ---
   const [modalVisible, setModalVisible] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newProvider, setNewProvider] = useState('');
@@ -165,8 +147,6 @@ export default function AppointmentList(): React.JSX.Element {
   useEffect(() => {
     loadAppointments();
   }, []);
-
-  // --- Handlers ---
 
   const handleDateChange = useCallback((_: any, date?: Date): void => {
     setShowDatePicker(false);
@@ -229,16 +209,13 @@ export default function AppointmentList(): React.JSX.Element {
     );
   }, [updateAppointmentStatus, deleteAppointment]);
 
-  // --- Derived stats ---
   const upcomingCount = state.appointments.filter((a) => a.status === 'Upcoming').length;
   const completedCount = state.appointments.filter((a) => a.status === 'Completed').length;
-
-  // --- Render ---
 
   if (state.isLoading && state.appointments.length === 0) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+        <ActivityIndicator size="large" color="#006591" />
         <Text style={styles.loadingText}>Syncing your care schedule...</Text>
       </View>
     );
@@ -246,10 +223,10 @@ export default function AppointmentList(): React.JSX.Element {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.gradientStart} />
+      <StatusBar barStyle="light-content" />
 
-      {/* ── GRADIENT HEADER ── */}
-      <View style={styles.headerBg}>
+      {/* GRADIENT HEADER */}
+      <LinearGradient colors={['#006591', '#0ea5e9']} style={styles.headerBg}>
         <View style={styles.headerDecor1} />
         <View style={styles.headerDecor2} />
         <View style={styles.headerContent}>
@@ -263,12 +240,12 @@ export default function AppointmentList(): React.JSX.Element {
               onPress={() => setModalVisible(true)}
               activeOpacity={0.8}
             >
-              <Ionicons name="add" size={22} color={COLORS.surface} />
+              <Ionicons name="add" size={22} color="#ffffff" />
             </TouchableOpacity>
           )}
         </View>
 
-        {/* ── STATS BANNER ── */}
+        {/* STATS BANNER */}
         <View style={styles.statsBanner}>
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>{upcomingCount}</Text>
@@ -285,13 +262,13 @@ export default function AppointmentList(): React.JSX.Element {
             <Text style={styles.statLabel}>Total</Text>
           </View>
         </View>
-      </View>
+      </LinearGradient>
 
-      {/* ── APPOINTMENT LIST ── */}
+      {/* APPOINTMENT LIST */}
       {state.appointments.length === 0 ? (
         <View style={styles.emptyContainer}>
           <View style={styles.emptyIconWrap}>
-            <Ionicons name="calendar-outline" size={44} color={COLORS.primary} />
+            <Ionicons name="calendar-outline" size={44} color="#006591" />
           </View>
           <Text style={styles.emptyTitle}>No Appointments Yet</Text>
           <Text style={styles.emptySubtitle}>
@@ -301,8 +278,15 @@ export default function AppointmentList(): React.JSX.Element {
             style={styles.emptyAddBtn}
             onPress={() => setModalVisible(true)}
           >
-            <Ionicons name="add-circle" size={18} color={COLORS.surface} />
-            <Text style={styles.emptyAddBtnText}>Book First Appointment</Text>
+            <LinearGradient
+              colors={['#006591', '#0ea5e9']}
+              style={styles.emptyAddBtnGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Ionicons name="add-circle" size={18} color="#ffffff" />
+              <Text style={styles.emptyAddBtnText}>Book First Appointment</Text>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
       ) : (
@@ -318,7 +302,7 @@ export default function AppointmentList(): React.JSX.Element {
         />
       )}
 
-      {/* ── ADD APPOINTMENT MODAL ── */}
+      {/* ADD APPOINTMENT MODAL */}
       <Modal visible={modalVisible} animationType="slide" transparent statusBarTranslucent>
         <KeyboardAvoidingView
           style={styles.modalKeyboardView}
@@ -326,17 +310,15 @@ export default function AppointmentList(): React.JSX.Element {
         >
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
-              {/* Modal Handle */}
               <View style={styles.modalHandle} />
 
               <View style={styles.modalTitleRow}>
                 <View style={styles.modalTitleIcon}>
-                  <Ionicons name="calendar-outline" size={18} color={COLORS.primary} />
+                  <Ionicons name="calendar-outline" size={18} color="#006591" />
                 </View>
                 <Text style={styles.modalTitle}>Book Appointment</Text>
               </View>
 
-              {/* Scrollable form */}
               <ScrollView
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
@@ -365,17 +347,16 @@ export default function AppointmentList(): React.JSX.Element {
                   iconName="location-outline"
                 />
 
-                {/* Date Selector */}
                 <Text style={styles.inputLabel}>Appointment Date *</Text>
                 <TouchableOpacity
                   style={styles.dateSelector}
                   onPress={() => setShowDatePicker(true)}
                 >
                   <View style={styles.dateSelectorIcon}>
-                    <Ionicons name="calendar" size={16} color={COLORS.primary} />
+                    <Ionicons name="calendar" size={16} color="#006591" />
                   </View>
                   <Text style={styles.dateSelectorText}>{formatDate(selectedDate)}</Text>
-                  <Ionicons name="chevron-down" size={16} color={COLORS.textLight} />
+                  <Ionicons name="chevron-down" size={16} color="#6e7881" />
                 </TouchableOpacity>
 
                 {showDatePicker && (
@@ -424,17 +405,17 @@ export default function AppointmentList(): React.JSX.Element {
 // ---------------------------------------------------------------------------
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background },
-  loadingText: { marginTop: 12, fontSize: FONTS.body, color: COLORS.textLight },
+  container: { flex: 1, backgroundColor: '#faf8ff' },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#faf8ff' },
+  loadingText: { marginTop: 12, fontSize: 14, fontFamily: 'Manrope_500Medium', color: '#6e7881' },
 
-  // Header
   headerBg: {
-    backgroundColor: COLORS.gradientStart,
     paddingBottom: 0,
-    overflow: 'visible', // Changed from hidden to allow stats banner to overlap
-    zIndex: 10,          // Added zIndex so it renders above the FlatList
+    overflow: 'visible',
+    zIndex: 10,
     position: 'relative',
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
   },
   headerDecor1: {
     position: 'absolute',
@@ -460,186 +441,198 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: SIZES.padding,
+    paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 12,
+    paddingBottom: 40, // Increased for stats banner overlap
   },
-  headerTitle: { fontSize: FONTS.h2, fontWeight: '800', color: COLORS.surface, letterSpacing: -0.5 },
-  headerSubtitle: { fontSize: FONTS.caption, color: 'rgba(255,255,255,0.65)', marginTop: 2 },
+  headerTitle: { fontSize: 24, fontFamily: 'Manrope_800ExtraBold', color: '#ffffff', letterSpacing: -0.5 },
+  headerSubtitle: { fontSize: 14, fontFamily: 'Manrope_500Medium', color: 'rgba(255,255,255,0.8)', marginTop: 4 },
   headerAddBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: 'rgba(255,255,255,0.2)',
     borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.35)',
+    borderColor: 'rgba(255,255,255,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
   },
 
-  // Stats
   statsBanner: {
     flexDirection: 'row',
-    backgroundColor: COLORS.surface,
-    marginHorizontal: SIZES.padding,
-    marginTop: 4,
-    marginBottom: -14,
-    borderRadius: SIZES.borderRadius,
-    paddingVertical: 14,
-    ...SHADOWS.cardStrong,
+    backgroundColor: '#ffffff',
+    marginHorizontal: 16,
+    marginTop: -32,
+    marginBottom: -16, // pull it over the bottom edge of header
+    borderRadius: 16,
+    paddingVertical: 16,
+    shadowColor: '#1f2687',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.05,
+    shadowRadius: 16,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(190, 200, 210, 0.2)',
   },
   statItem: { flex: 1, alignItems: 'center' },
-  statNumber: { fontSize: FONTS.h2, fontWeight: '800', color: COLORS.primary },
-  statLabel: { fontSize: FONTS.micro, color: COLORS.textLight, marginTop: 2, fontWeight: '500' },
-  statDivider: { width: 1, backgroundColor: COLORS.border, marginVertical: 4 },
+  statNumber: { fontSize: 24, fontFamily: 'Manrope_800ExtraBold', color: '#006591' },
+  statLabel: { fontSize: 12, fontFamily: 'Manrope_600SemiBold', color: '#6e7881', marginTop: 4 },
+  statDivider: { width: 1, backgroundColor: 'rgba(190, 200, 210, 0.3)', marginVertical: 4 },
 
-  listContent: { padding: SIZES.padding, paddingTop: 40, paddingBottom: 100 },
+  listContent: { padding: 16, paddingTop: 40, paddingBottom: 120 },
 
-  // Appointment Cards
   card: {
     flexDirection: 'row',
-    backgroundColor: COLORS.surface,
-    borderRadius: SIZES.borderRadius,
-    padding: SIZES.cardPadding,
-    marginBottom: 12,
-    gap: 12,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    gap: 16,
     borderLeftWidth: 4,
-    ...SHADOWS.card,
+    shadowColor: '#1f2687',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+    elevation: 2,
+    borderColor: 'rgba(190, 200, 210, 0.1)',
   },
   cardMuted: { opacity: 0.65 },
 
   dateBadge: {
-    width: 52,
+    width: 56,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.primaryTint,
-    borderRadius: 10,
-    paddingVertical: 10,
+    backgroundColor: '#eef0ff',
+    borderRadius: 12,
+    paddingVertical: 12,
     alignSelf: 'flex-start',
   },
-  dateBadgeMuted: { backgroundColor: COLORS.borderSoft },
-  dateDay: { fontSize: FONTS.h3, fontWeight: '800', color: COLORS.primary },
-  dateMonth: { fontSize: FONTS.micro, color: COLORS.primary, fontWeight: '700' },
-  textMuted: { color: COLORS.textLight },
+  dateBadgeMuted: { backgroundColor: '#f2f3ff' },
+  dateDay: { fontSize: 20, fontFamily: 'Manrope_800ExtraBold', color: '#006591' },
+  dateMonth: { fontSize: 12, fontFamily: 'Manrope_700Bold', color: '#006591' },
+  textMuted: { color: '#6e7881' },
 
   cardBody: { flex: 1, gap: 4 },
-  cardTitle: { fontSize: FONTS.body, fontWeight: '700', color: COLORS.text },
-  titleStrikethrough: { textDecorationLine: 'line-through', color: COLORS.textLight },
-  relativeDate: { fontSize: FONTS.micro, color: COLORS.primary, fontWeight: '600', marginTop: 1 },
-  detailRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  detailText: { fontSize: FONTS.caption, color: COLORS.textLight, flex: 1 },
+  cardTitle: { fontSize: 16, fontFamily: 'Manrope_700Bold', color: '#131b2e' },
+  titleStrikethrough: { textDecorationLine: 'line-through', color: '#6e7881' },
+  relativeDate: { fontSize: 12, fontFamily: 'Manrope_600SemiBold', color: '#006591', marginTop: 2 },
+  detailRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  detailText: { fontSize: 12, fontFamily: 'Manrope_500Medium', color: '#6e7881', flex: 1 },
 
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 12,
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 8,
+    gap: 4,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: SIZES.pill,
+    borderRadius: 12,
   },
-  statusText: { fontSize: FONTS.micro, fontWeight: '700' },
+  statusText: { fontSize: 10, fontFamily: 'Manrope_700Bold' },
   manageBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    backgroundColor: COLORS.primaryTint,
-    borderRadius: SIZES.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#eef0ff',
+    borderRadius: 12,
   },
-  manageBtnText: { fontSize: FONTS.micro, fontWeight: '700', color: COLORS.primary },
+  manageBtnText: { fontSize: 10, fontFamily: 'Manrope_700Bold', color: '#006591' },
 
-  // Empty State
-  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40, marginTop: 20 },
+  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40, marginTop: 40 },
   emptyIconWrap: {
     width: 90,
     height: 90,
     borderRadius: 45,
-    backgroundColor: COLORS.primaryTint,
+    backgroundColor: '#eef0ff',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
   },
-  emptyTitle: { fontSize: FONTS.h3, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
-  emptySubtitle: { fontSize: FONTS.caption, color: COLORS.textLight, textAlign: 'center', marginBottom: 24, lineHeight: 20 },
+  emptyTitle: { fontSize: 20, fontFamily: 'Manrope_700Bold', color: '#131b2e', marginBottom: 8 },
+  emptySubtitle: { fontSize: 14, fontFamily: 'Manrope_500Medium', color: '#6e7881', textAlign: 'center', marginBottom: 24, lineHeight: 20 },
   emptyAddBtn: {
+    borderRadius: 12,
+    shadowColor: '#006591',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  emptyAddBtnGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: COLORS.primary,
-    borderRadius: SIZES.pill,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    ...SHADOWS.button,
+    borderRadius: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
   },
-  emptyAddBtnText: { fontSize: FONTS.body, fontWeight: '700', color: COLORS.surface },
+  emptyAddBtnText: { fontSize: 14, fontFamily: 'Manrope_700Bold', color: '#ffffff' },
 
-  // Modal
   modalKeyboardView: { flex: 1, justifyContent: 'flex-end' },
   modalOverlay: {
     flex: 1,
-    backgroundColor: COLORS.overlay,
+    backgroundColor: 'rgba(19, 27, 46, 0.6)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingTop: 20,
-    paddingHorizontal: 24,
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    paddingTop: 24,
+    paddingHorizontal: 32,
     maxHeight: '92%',
-    ...SHADOWS.modal,
   },
-  modalScrollContent: { paddingBottom: 36 },
+  modalScrollContent: { paddingBottom: 40 },
   modalHandle: {
-    width: 36,
+    width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: COLORS.border,
+    backgroundColor: '#bec8d2',
     alignSelf: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
   },
   modalTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 20,
+    gap: 12,
+    marginBottom: 24,
   },
   modalTitleIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: COLORS.primaryTint,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#eef0ff',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  modalTitle: { fontSize: FONTS.h2, fontWeight: '800', color: COLORS.text },
-  inputLabel: { fontSize: FONTS.caption, fontWeight: '600', color: COLORS.textLight, marginBottom: 8 },
+  modalTitle: { fontSize: 24, fontFamily: 'Manrope_800ExtraBold', color: '#131b2e' },
+  inputLabel: { fontSize: 12, fontFamily: 'Manrope_600SemiBold', color: '#6e7881', marginBottom: 8 },
   dateSelector: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.background,
+    backgroundColor: '#faf8ff',
     padding: 14,
-    borderRadius: SIZES.borderRadius,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#bec8d2',
     marginBottom: 24,
-    gap: 10,
+    gap: 12,
   },
   dateSelectorIcon: {
     width: 28,
     height: 28,
     borderRadius: 8,
-    backgroundColor: COLORS.primaryTint,
+    backgroundColor: '#eef0ff',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  dateSelectorText: { flex: 1, fontSize: FONTS.body, color: COLORS.text, fontWeight: '500' },
-  modalActions: { gap: 0, marginTop: 4 },
+  dateSelectorText: { flex: 1, fontSize: 14, fontFamily: 'Manrope_500Medium', color: '#131b2e' },
+  modalActions: { gap: 8, marginTop: 8 },
 });

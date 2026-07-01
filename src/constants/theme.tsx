@@ -14,49 +14,28 @@
 // ---------------------------------------------------------------------------
 
 export const COLORS = {
-  /** Primary action color: trustworthy medical blue */
   primary: '#0EA5E9',
-  /** Darker primary for depth */
   primaryDark: '#0369A1',
-  /** Lighter variant for highlights and badges */
   secondary: '#38BDF8',
-  /** Lightest tint for backgrounds */
   primaryTint: '#E0F2FE',
-  /** Accent for success states and completed items */
   success: '#10B981',
-  /** Light success background */
   successLight: '#D1FAE5',
-  /** Accent for warning/pending states */
   warning: '#F59E0B',
-  /** Light warning background */
   warningLight: '#FEF3C7',
-  /** Accent for destructive/error actions */
   error: '#EF4444',
-  /** Light error background */
   errorLight: '#FEE2E2',
-  /** App-wide background — subtle off-white */
   background: '#F0F7FF',
-  /** Card and surface background */
   surface: '#FFFFFF',
-  /** Primary text color */
   text: '#0F172A',
-  /** Secondary/hint text color */
   textLight: '#64748B',
-  /** Divider and border color */
   border: '#E2E8F0',
-  /** Soft border for subtle dividers */
   borderSoft: '#F1F5F9',
-  /** Dark gradient start for hero sections */
   gradientStart: '#0C4A6E',
-  /** Mid gradient for rich depth */
   gradientMid: '#0369A1',
-  /** Dark gradient end for hero sections */
   gradientEnd: '#0EA5E9',
-  /** Overlay for modals and drawers */
   overlay: 'rgba(15, 23, 42, 0.55)',
-  /** Pure white with opacity — for glassmorphism */
   glassWhite: 'rgba(255, 255, 255, 0.15)',
-  /** Dark glass tint */
+
   glassDark: 'rgba(15, 23, 42, 0.08)',
 };
 
@@ -65,13 +44,9 @@ export const COLORS = {
 // ---------------------------------------------------------------------------
 
 export const GRADIENT_COLORS = {
-  /** Hero gradient — dark ocean blue */
   hero: ['#0C4A6E', '#0369A1', '#0EA5E9'] as const,
-  /** Card accent gradient — blue */
   card: ['#0EA5E9', '#38BDF8'] as const,
-  /** Success gradient */
   success: ['#059669', '#10B981'] as const,
-  /** Warm gradient for appointments */
   warm: ['#0369A1', '#0EA5E9', '#7DD3FC'] as const,
 };
 
@@ -80,19 +55,12 @@ export const GRADIENT_COLORS = {
 // ---------------------------------------------------------------------------
 
 export const FONTS = {
-  /** Display / hero titles */
   display: 32,
-  /** Large section headers */
   h1: 28,
-  /** Screen titles */
   h2: 22,
-  /** Card headings */
   h3: 18,
-  /** Body text */
   body: 16,
-  /** Small labels and captions */
   caption: 13,
-  /** Micro labels / badge text */
   micro: 11,
 };
 
@@ -101,19 +69,13 @@ export const FONTS = {
 // ---------------------------------------------------------------------------
 
 export const SIZES = {
-  /** Standard horizontal/vertical screen padding */
+
   padding: 20,
-  /** Standard card padding */
   cardPadding: 16,
-  /** Small gap between elements */
   gap: 8,
-  /** Standard border radius for cards and inputs */
   borderRadius: 12,
-  /** Larger border radius for hero cards */
   borderRadiusLg: 20,
-  /** Pill-shaped border radius */
   pill: 999,
-  /** Icon button / avatar small size */
   iconButton: 40,
 };
 
@@ -124,37 +86,37 @@ export const SIZES = {
 export const SHADOWS = {
   card: {
     shadowColor: '#0EA5E9',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
     elevation: 3,
   },
   cardStrong: {
     shadowColor: '#0EA5E9',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
-    shadowRadius: 16,
+    shadowRadius: 24,
     elevation: 6,
   },
   modal: {
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
     elevation: 10,
   },
   button: {
     shadowColor: '#0EA5E9',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 6,
   },
   hero: {
     shadowColor: '#0C4A6E',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.3,
+    shadowRadius: 24,
     elevation: 12,
   },
 };

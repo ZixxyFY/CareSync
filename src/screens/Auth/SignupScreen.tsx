@@ -274,9 +274,9 @@ const styles = StyleSheet.create({
   // Hero Header
   heroHeader: {
     backgroundColor: COLORS.gradientStart,
-    paddingTop: 20,
+    paddingTop: 40,
     paddingHorizontal: SIZES.padding,
-    paddingBottom: 36,
+    paddingBottom: 48,
     overflow: 'hidden',
     position: 'relative',
   },
@@ -313,9 +313,10 @@ const styles = StyleSheet.create({
   // Form Card
   formCard: {
     backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: 24,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: 32,
+    paddingTop: 36,
     flex: 1,
     ...SHADOWS.modal,
   },
@@ -326,25 +327,25 @@ const styles = StyleSheet.create({
     color: COLORS.textLight,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
-    marginBottom: 12,
+    marginBottom: 16,
   },
 
   // Role Cards
   roleContainer: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 20,
+    gap: 12,
+    marginBottom: 24,
   },
   roleCard: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 10,
     borderRadius: SIZES.borderRadius,
     borderWidth: 1.5,
     borderColor: COLORS.border,
     backgroundColor: COLORS.background,
-    gap: 4,
+    gap: 6,
   },
   roleIconWrap: {
     width: 34,

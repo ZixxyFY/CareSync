@@ -3,15 +3,8 @@
  * @file LoginScreen.tsx
  * @description Authentication login screen for CareSync.
  *
- * SOLID Principle: Single Responsibility (SRP) — This is a "dumb" UI component.
- * It ONLY handles:
- *   1. Local input state (email, password strings)
- *   2. Local error display state
- *   3. Calling the `login` function from AuthContext
- *
- * ALL validation logic lives in `validations.tsx`.
- * ALL authentication logic lives in `AuthContext` → `authService`.
- * This screen has ZERO business logic.
+ * Implements the new CareSync Premium UI design with LinearGradients
+ * and glassmorphism styling.
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -25,17 +18,13 @@ import {
   TouchableOpacity,
   StatusBar,
   Animated,
-  Dimensions,
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import CustomInput from '../../components/CustomInput';
-import CustomButton from '../../components/CustomButton';
 import { useAuth } from '../../context/AuthContext';
-import { COLORS, FONTS, SIZES, SHADOWS } from '../../constants/theme';
 import { isValidEmail, isValidPassword } from '../../utils/validations';
-
-const { width } = Dimensions.get('window');
 
 // ---------------------------------------------------------------------------
 // NAVIGATION TYPES
@@ -56,10 +45,6 @@ interface LoginScreenProps {
 // COMPONENT
 // ---------------------------------------------------------------------------
 
-/**
- * LoginScreen — The entry point of the app for unauthenticated users.
- * Features a premium animated hero section with glassmorphism card.
- */
 export default function LoginScreen({ navigation }: LoginScreenProps): React.JSX.Element {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -69,27 +54,17 @@ export default function LoginScreen({ navigation }: LoginScreenProps): React.JSX
 
   // Entrance animations
   const logoAnim = useRef(new Animated.Value(0)).current;
-  const titleAnim = useRef(new Animated.Value(0)).current;
-  const cardAnim = useRef(new Animated.Value(40)).current;
   const cardOpacity = useRef(new Animated.Value(0)).current;
-  const pulse = useRef(new Animated.Value(1)).current;
+  const cardAnim = useRef(new Animated.Value(40)).current;
 
   useEffect(() => {
-    // Staggered entrance animation
     Animated.sequence([
-      Animated.parallel([
-        Animated.spring(logoAnim, {
-          toValue: 1,
-          tension: 60,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-        Animated.timing(titleAnim, {
-          toValue: 1,
-          duration: 600,
-          useNativeDriver: true,
-        }),
-      ]),
+      Animated.spring(logoAnim, {
+        toValue: 1,
+        tension: 60,
+        friction: 8,
+        useNativeDriver: true,
+      }),
       Animated.parallel([
         Animated.spring(cardAnim, {
           toValue: 0,
@@ -104,21 +79,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps): React.JSX
         }),
       ]),
     ]).start();
-
-    // Subtle pulse on logo
-    const pulseLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1.08, duration: 2000, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: 2000, useNativeDriver: true }),
-      ])
-    );
-    pulseLoop.start();
-    return () => pulseLoop.stop();
   }, []);
-
-  // ---------------------------------------------------------------------------
-  // VALIDATION
-  // ---------------------------------------------------------------------------
 
   const validateForm = (): boolean => {
     const newErrors: { email?: string; password?: string } = {};
@@ -134,16 +95,11 @@ export default function LoginScreen({ navigation }: LoginScreenProps): React.JSX
     return Object.keys(newErrors).length === 0;
   };
 
-  // ---------------------------------------------------------------------------
-  // SUBMIT HANDLER
-  // ---------------------------------------------------------------------------
-
   const handleLogin = async (): Promise<void> => {
     if (!validateForm()) return;
     setIsSubmitting(true);
     try {
       await login(email, password);
-      // Navigation is handled automatically by the root navigator watching AuthContext.user
     } catch (error: any) {
       Alert.alert('Login Failed', error.message, [{ text: 'OK' }]);
     } finally {
@@ -151,116 +107,108 @@ export default function LoginScreen({ navigation }: LoginScreenProps): React.JSX
     }
   };
 
-  // ---------------------------------------------------------------------------
-  // RENDER
-  // ---------------------------------------------------------------------------
-
   return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.gradientStart} />
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        {/* ── HERO BACKGROUND ── */}
-        <View style={styles.heroBackground}>
-          {/* Decorative circles */}
-          <View style={[styles.decorCircle, styles.decorCircle1]} />
-          <View style={[styles.decorCircle, styles.decorCircle2]} />
-          <View style={[styles.decorCircle, styles.decorCircle3]} />
-
-          {/* ── LOGO & TITLE ── */}
-          <Animated.View
-            style={[
-              styles.logoContainer,
-              {
-                opacity: logoAnim,
-                transform: [
-                  { scale: Animated.multiply(logoAnim, pulse) },
-                ],
-              },
-            ]}
-          >
-            <View style={styles.logoInner}>
-              <Ionicons name="heart" size={40} color={COLORS.surface} />
-            </View>
-            <View style={styles.logoRing} />
-          </Animated.View>
-
-          <Animated.View style={{ opacity: titleAnim, alignItems: 'center' }}>
-            <Text style={styles.appName}>CareSync</Text>
-            <Text style={styles.tagline}>Collaborative Rehab & Care Coordinator</Text>
-          </Animated.View>
-        </View>
-
-        {/* ── FORM CARD ── */}
-        <Animated.View
-          style={[
-            styles.formCard,
-            {
-              opacity: cardOpacity,
-              transform: [{ translateY: cardAnim }],
-            },
-          ]}
+    <LinearGradient
+      colors={['#e2e7ff', '#faf8ff', '#eaedff']}
+      style={styles.safe}
+    >
+      <SafeAreaView style={styles.safe}>
+        <StatusBar barStyle="dark-content" />
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          {/* Card accent line */}
-          <View style={styles.cardAccent} />
+          {/* Auth Card (Glassmorphism emulation) */}
+          <Animated.View style={[styles.mainCard, { opacity: cardOpacity, transform: [{ translateY: cardAnim }] }]}>
+            
+            {/* Logo Section */}
+            <Animated.View style={[styles.header, { transform: [{ scale: logoAnim }] }]}>
+              <LinearGradient
+                colors={['#006591', '#0ea5e9']}
+                style={styles.logoIconContainer}
+              >
+                <Ionicons name="document-text" size={32} color="#ffffff" />
+              </LinearGradient>
+              <Text style={styles.title}>
+                <Text style={styles.titleRegular}>Care</Text>
+                <Text style={styles.titleBold}>Sync</Text>
+              </Text>
+              <Text style={styles.subtitle}>Professional Healthcare Access</Text>
+            </Animated.View>
 
-          <Text style={styles.formTitle}>Welcome Back </Text>
-          <Text style={styles.formSubtitle}>Sign in to continue coordinating care</Text>
+            {/* Form Section */}
+            <View style={styles.formContainer}>
+              <CustomInput
+                label="Email Address"
+                value={email}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  if (errors.email) setErrors((prev) => ({ ...prev, email: undefined }));
+                }}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                error={errors.email}
+              />
 
-          <CustomInput
-            label="Email Address"
-            value={email}
-            onChangeText={(text) => {
-              setEmail(text);
-              if (errors.email) setErrors((prev) => ({ ...prev, email: undefined }));
-            }}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            iconName="mail-outline"
-            error={errors.email}
-          />
+              <CustomInput
+                label="Password"
+                value={password}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  if (errors.password) setErrors((prev) => ({ ...prev, password: undefined }));
+                }}
+                secureTextEntry
+                error={errors.password}
+              />
 
-          <CustomInput
-            label="Password"
-            value={password}
-            onChangeText={(text) => {
-              setPassword(text);
-              if (errors.password) setErrors((prev) => ({ ...prev, password: undefined }));
-            }}
-            secureTextEntry
-            iconName="lock-closed-outline"
-            error={errors.password}
-          />
+              <View style={styles.forgotPasswordContainer}>
+                <TouchableOpacity>
+                  <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+                </TouchableOpacity>
+              </View>
 
-          {/* Demo credentials hint */}
-          <View style={styles.hintBox}>
-            <View style={styles.hintIconWrap}>
-              <Ionicons name="flash" size={14} color={COLORS.primary} />
+              {/* Primary Action Button */}
+              <TouchableOpacity onPress={handleLogin} disabled={isSubmitting} activeOpacity={0.8}>
+                <LinearGradient
+                  colors={['#006591', '#0ea5e9']}
+                  style={styles.primaryButton}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                >
+                  <Text style={styles.primaryButtonText}>
+                    {isSubmitting ? 'Authenticating...' : 'Sign In'}
+                  </Text>
+                  {!isSubmitting && <Ionicons name="arrow-forward" size={20} color="#fff" />}
+                </LinearGradient>
+              </TouchableOpacity>
             </View>
-            <Text style={styles.hintText}>
-              Demo: any valid email + 6+ character password
-            </Text>
-          </View>
 
-          <CustomButton
-            title="Sign In"
-            onPress={handleLogin}
-            loading={isSubmitting}
-          />
-        </Animated.View>
+            {/* Divider */}
+            <View style={styles.dividerContainer}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>OR</Text>
+              <View style={styles.dividerLine} />
+            </View>
 
-        {/* ── FOOTER ── */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Don't have an account? </Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
-            <Text style={styles.footerLink}>Create Account →</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+            {/* Social Auth */}
+            <TouchableOpacity style={styles.socialButton} activeOpacity={0.7}>
+              <Ionicons name="logo-google" size={20} color="#006591" />
+              <Text style={styles.socialButtonText}>Continue with Google</Text>
+            </TouchableOpacity>
+
+            {/* Footer Links */}
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>Don't have an account? </Text>
+              <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
+                <Text style={styles.footerLink}>Sign Up</Text>
+              </TouchableOpacity>
+            </View>
+
+          </Animated.View>
+        </ScrollView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
@@ -271,155 +219,141 @@ export default function LoginScreen({ navigation }: LoginScreenProps): React.JSX
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: COLORS.gradientStart,
   },
   scrollContent: {
     flexGrow: 1,
-  },
-
-  // Hero Section
-  heroBackground: {
-    backgroundColor: COLORS.gradientStart,
-    paddingTop: 48,
-    paddingBottom: 48,
-    alignItems: 'center',
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  decorCircle: {
-    position: 'absolute',
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-  decorCircle1: {
-    width: 220,
-    height: 220,
-    top: -60,
-    right: -50,
-  },
-  decorCircle2: {
-    width: 160,
-    height: 160,
-    bottom: -40,
-    left: -40,
-  },
-  decorCircle3: {
-    width: 100,
-    height: 100,
-    top: 40,
-    left: 20,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-  },
-  logoContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
-    position: 'relative',
+    padding: 16,
   },
-  logoInner: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.4)',
-    justifyContent: 'center',
+  mainCard: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: 'rgba(255, 255, 255, 0.75)', // Less opaque to simulate glass
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.8)',
+    borderRadius: 16,
+    padding: 32,
+    shadowColor: '#1f2687',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.05,
+    shadowRadius: 32,
+    elevation: 4,
     alignItems: 'center',
-    zIndex: 1,
   },
-  logoRing: {
-    position: 'absolute',
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.2)',
+  header: {
+    alignItems: 'center',
+    marginBottom: 32,
   },
-  appName: {
-    fontSize: FONTS.display,
-    fontWeight: '800',
-    color: COLORS.surface,
-    letterSpacing: -1,
+  logoIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    shadowColor: '#006591',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  tagline: {
-    fontSize: FONTS.caption,
-    color: 'rgba(255,255,255,0.7)',
-    marginTop: 6,
-    textAlign: 'center',
-    letterSpacing: 0.3,
-  },
-
-  // Form Card
-  formCard: {
-    backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: 28,
-    paddingTop: 32,
-    flex: 1,
-    minHeight: 480,
-    ...SHADOWS.modal,
-  },
-  cardAccent: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: COLORS.primary,
-    marginBottom: 20,
-    alignSelf: 'flex-start',
-  },
-  formTitle: {
-    fontSize: FONTS.h2,
-    fontWeight: '800',
-    color: COLORS.text,
-    marginBottom: 4,
+  title: {
+    fontSize: 24,
+    fontFamily: 'Manrope_600SemiBold',
     letterSpacing: -0.5,
+    color: '#006591',
   },
-  formSubtitle: {
-    fontSize: FONTS.caption,
-    color: COLORS.textLight,
+  titleRegular: {
+    fontFamily: 'Manrope_500Medium',
+  },
+  titleBold: {
+    fontFamily: 'Manrope_800ExtraBold',
+  },
+  subtitle: {
+    fontSize: 14,
+    fontFamily: 'Manrope_500Medium',
+    color: '#6e7881',
+    marginTop: 4,
+  },
+  formContainer: {
+    width: '100%',
+  },
+  forgotPasswordContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
     marginBottom: 24,
   },
-  hintBox: {
+  forgotPasswordText: {
+    fontSize: 12,
+    fontFamily: 'Manrope_600SemiBold',
+    color: '#006591',
+  },
+  primaryButton: {
+    height: 48,
+    borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.primaryTint,
-    borderRadius: SIZES.borderRadius,
-    padding: 12,
-    marginBottom: 16,
-    gap: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: COLORS.primary,
-  },
-  hintIconWrap: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(14, 165, 233, 0.15)',
     justifyContent: 'center',
-    alignItems: 'center',
+    shadowColor: '#006591',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  hintText: {
-    fontSize: FONTS.caption,
-    color: COLORS.primaryDark,
+  primaryButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontFamily: 'Manrope_600SemiBold',
+    marginRight: 8,
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    marginVertical: 32,
+  },
+  dividerLine: {
     flex: 1,
-    fontWeight: '500',
+    height: 1,
+    backgroundColor: 'rgba(190, 200, 210, 0.5)',
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    fontSize: 12,
+    fontFamily: 'Manrope_500Medium',
+    color: '#6e7881',
+  },
+  socialButton: {
+    width: '100%',
+    height: 48,
+    borderWidth: 1,
+    borderColor: 'rgba(190, 200, 210, 0.5)',
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 32,
+  },
+  socialButtonText: {
+    fontSize: 14,
+    fontFamily: 'Manrope_500Medium',
+    color: '#131b2e',
+    marginLeft: 16,
   },
   footer: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    paddingVertical: 20,
-    paddingBottom: 36,
+    marginTop: 'auto',
   },
   footerText: {
-    fontSize: FONTS.caption,
-    color: COLORS.textLight,
+    fontSize: 14,
+    fontFamily: 'Manrope_500Medium',
+    color: '#3e4850',
   },
   footerLink: {
-    fontSize: FONTS.caption,
-    color: COLORS.primary,
-    fontWeight: '700',
+    fontSize: 14,
+    fontFamily: 'Manrope_700Bold',
+    color: '#006591',
   },
 });

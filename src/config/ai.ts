@@ -12,6 +12,4 @@ export const GEMINI_VISION_URL = `https://generativelanguage.googleapis.com/v1be
  * Accepts any key of sufficient length that is not the dev placeholder.
  */
 export const isGeminiConfigured = (): boolean =>
-  GEMINI_API_KEY.trim().length > 20 &&
-  !GEMINI_API_KEY.includes('AQ.Ab8RN6LTFBUIS4EjblHEy4o_pGqdctHqijQrWT9lBIemcZIaXg') &&
-  GEMINI_API_KEY !== 'AQ.Ab8RN6LTFBUIS4EjblHEy4o_pGqdctHqijQrWT9lBIemcZIaXg';
+  GEMINI_API_KEY.trim().length > 20;

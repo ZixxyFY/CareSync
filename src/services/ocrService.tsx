@@ -1,4 +1,5 @@
 // src/services/ocrService.tsx
+import { isGeminiConfigured, GEMINI_VISION_URL } from '../config/ai';
 
 export interface ParsedMedication {
   medication: string;
@@ -30,6 +31,59 @@ export const parsePrescriptionImageAPI = async (base64Image: string): Promise<OC
     throw new Error('A valid base64 string is required for OCR processing.');
   }
 
+  if (isGeminiConfigured()) {
+    try {
+      const response = await fetch(GEMINI_VISION_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: 'Extract the prescription information from this image and return it strictly as a JSON object matching this schema without any markdown formatting:\n{\n  "patientName": "Name or Unknown",\n  "prescribedBy": "Doctor name or Unknown",\n  "prescribedDate": "Date or Unknown",\n  "medications": [\n    {\n      "medication": "Drug name",\n      "dosage": "Dosage (e.g. 500mg)",\n      "frequency": "Frequency (e.g. 2 times a day)",\n      "duration": "Duration (optional)",\n      "instructions": "Instructions (optional)"\n    }\n  ],\n  "confidence": 0.95\n}'
+                },
+                {
+                  inlineData: {
+                    mimeType: 'image/jpeg',
+                    data: base64Image,
+                  }
+                }
+              ]
+            }
+          ]
+        })
+      });
+
+      if (response.ok) {
+        const json = await response.json();
+        const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) {
+          const cleanJsonText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+          const parsed = JSON.parse(cleanJsonText);
+          
+          return {
+            patientName: parsed.patientName || 'Unknown',
+            prescribedBy: parsed.prescribedBy || 'Unknown',
+            date: parsed.prescribedDate || new Date().toLocaleDateString(),
+            prescribedDate: parsed.prescribedDate || new Date().toLocaleDateString(),
+            medication: parsed.medications?.[0]?.medication || 'Unknown',
+            dosage: parsed.medications?.[0]?.dosage || 'Unknown',
+            frequency: parsed.medications?.[0]?.frequency || 'Unknown',
+            rawText: cleanJsonText,
+            confidence: parsed.confidence || 0.9,
+            medications: parsed.medications || []
+          };
+        }
+      }
+    } catch (error) {
+      console.warn('Gemini OCR failed, falling back to basic OCR...', error);
+    }
+  }
+
+  // Fallback OCR
   const formData = new FormData();
   formData.append('base64Image', `data:image/jpeg;base64,${base64Image}`);
   formData.append('apikey', 'helloworld');
@@ -51,8 +105,6 @@ export const parsePrescriptionImageAPI = async (base64Image: string): Promise<OC
   }
 
   const rawText = json.ParsedResults?.[0]?.ParsedText || '';
-
-  // Split raw text block by newline tokens, trim whitespace, discard empty strings
   const lines = rawText.split('\n').map((l: string) => l.trim()).filter(Boolean);
   
   let patientName = '';
@@ -62,53 +114,31 @@ export const parsePrescriptionImageAPI = async (base64Image: string): Promise<OC
   let dosage = '';
   let frequency = '';
 
-  // Heuristic Scanning Matrix
   for (const line of lines) {
     const lowerLine = line.toLowerCase();
-
-    // 1. Patient Name
     if (/FOR\s*\(Full\s*name/i.test(line) || /(John Doe|John R\.? Doe)/i.test(line)) {
       let name = line;
-      if (/FOR\s*\(Full\s*name/i.test(name)) {
-        name = name.replace(/.*FOR\s*\(Full\s*name.*?\)?/i, '').replace(/[:]/g, '').trim();
-      }
+      if (/FOR\s*\(Full\s*name/i.test(name)) name = name.replace(/.*FOR\s*\(Full\s*name.*?\)?/i, '').replace(/[:]/g, '').trim();
       name = name.replace(/\b(HM3|USN|USNR)\b/ig, '').trim();
-      if (name && !patientName) {
-        patientName = name;
-      } else if (!patientName && /(John Doe|John R\.? Doe)/i.test(line)) {
-        patientName = line.replace(/\b(HM3|USN|USNR)\b/ig, '').trim();
-      }
+      if (name && !patientName) patientName = name;
+      else if (!patientName && /(John Doe|John R\.? Doe)/i.test(line)) patientName = line.replace(/\b(HM3|USN|USNR)\b/ig, '').trim();
     }
-
-    // 2. Prescriber/Doctor
     if (/\b(MD|Dr\.?|CDR|USNR)\b/i.test(line) && !/john doe/i.test(line)) {
       if (!prescribedBy) prescribedBy = line.trim();
     }
-
-    // 3. Prescription Date
-    if (/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,4}/i.test(line) ||
-        /\b\d{1,2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{2,4}\b/i.test(line)) {
+    if (/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,4}/i.test(line) || /\b\d{1,2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{2,4}\b/i.test(line)) {
       if (!prescribedDate) prescribedDate = line.trim();
     }
-
-    // 4. Medication Identity
     if (/(Belladonna|Amphogel|Paracetamol|Ibuprofen|Amoxicillin|Lisinopril)/i.test(line)) {
       if (!lowerLine.includes('gm or ml') && !lowerLine.includes('mg')) {
         if (!medication) medication = line.trim();
         else medication += ' & ' + line.trim();
       }
     }
-
-    // 5. Dosage Quantification
     if (/\b\d+(\.\d+)?\s*(mg|ml|gm|g|mcg|tablet|capsule|drop)s?\b/i.test(line)) {
-      if (dosage) {
-        dosage += ' & ' + line.trim();
-      } else {
-        dosage = line.trim();
-      }
+      if (dosage) dosage += ' & ' + line.trim();
+      else dosage = line.trim();
     }
-
-    // 6. Frequency/Signa Instructions
     if (/\b(Sig:|t\.i\.d\.|a\.c\.|daily|b\.i\.d\.|q\.d\.|q\.i\.d\.|p\.r\.n\.)\b/i.test(line)) {
       let cleanFreq = line.replace(/Sig:/i, '').trim();
       if (!frequency) frequency = cleanFreq;
@@ -116,7 +146,6 @@ export const parsePrescriptionImageAPI = async (base64Image: string): Promise<OC
     }
   }
 
-  // Final assignments and compatibility mapping
   const finalPatientName = patientName || 'Unknown';
   const finalPrescribedBy = prescribedBy || 'Unknown';
   const finalDate = prescribedDate || new Date().toLocaleDateString();
@@ -132,8 +161,6 @@ export const parsePrescriptionImageAPI = async (base64Image: string): Promise<OC
     dosage: finalDosage,
     frequency: finalFrequency,
     rawText,
-    
-    // Legacy fields for backward compatibility with OCRScanner/MedicalContext
     prescribedDate: finalDate,
     confidence: 0.8,
     medications: [

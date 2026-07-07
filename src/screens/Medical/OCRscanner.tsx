@@ -21,7 +21,15 @@ import {
   ActivityIndicator,
   TextInput,
   Animated,
+  LayoutAnimation,
+  UIManager,
+  Platform,
 } from 'react-native';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -104,15 +112,10 @@ const MedicationRow = ({
 const RecordCard = ({ record, onDelete }: { record: MedicalRecord; onDelete: (id: string) => void }) => {
   const [expanded, setExpanded] = useState(false);
   const date = new Date(record.savedAt);
-  const slideAnim = useRef(new Animated.Value(0)).current;
 
   const toggleExpand = () => {
-    if (!expanded) {
-      setExpanded(true);
-      Animated.spring(slideAnim, { toValue: 1, tension: 50, friction: 8, useNativeDriver: true }).start();
-    } else {
-      Animated.timing(slideAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => setExpanded(false));
-    }
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpanded(!expanded);
   };
 
   return (
@@ -174,15 +177,7 @@ const RecordCard = ({ record, onDelete }: { record: MedicalRecord; onDelete: (id
       </TouchableOpacity>
 
       {expanded && (
-        <Animated.View
-          style={[
-            styles.recordExpanded,
-            {
-              opacity: slideAnim,
-              transform: [{ translateY: slideAnim.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) }],
-            },
-          ]}
-        >
+        <View style={styles.recordExpanded}>
           {record.patientName ? (
             <Text style={styles.recordMeta}>
               <Ionicons name="person-outline" size={13} /> Patient: {record.patientName}
@@ -205,7 +200,7 @@ const RecordCard = ({ record, onDelete }: { record: MedicalRecord; onDelete: (id
               </View>
             </View>
           ))}
-        </Animated.View>
+        </View>
       )}
     </View>
   );
@@ -602,8 +597,8 @@ export default function OCRScanner(): React.JSX.Element {
           <ActivityIndicator style={{ marginTop: 20 }} color="#006591" />
         ) : state.records.length > 0 ? (
           <View style={{ marginTop: 24 }}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionLabelMain}>Saved Records</Text>
+            <View style={[styles.sectionHeaderRow, { marginHorizontal: 16 }]}>
+              <Text style={[styles.sectionLabelMain, { marginHorizontal: 0, marginBottom: 0 }]}>Saved Records</Text>
               <View style={styles.countBadge}>
                 <Text style={styles.countBadgeText}>{state.records.length}</Text>
               </View>
@@ -735,8 +730,8 @@ const styles = StyleSheet.create({
   scanCardTitle: { fontSize: 14, fontFamily: 'Manrope_700Bold', color: '#131b2e' },
   scanCardSubtitle: { fontSize: 12, fontFamily: 'Manrope_500Medium', color: '#6e7881', textAlign: 'center', marginTop: 4 },
 
-  sectionLabelMain: { fontSize: 14, fontFamily: 'Manrope_700Bold', color: '#131b2e', marginHorizontal: 20, marginBottom: 12 },
-  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, marginBottom: 12 },
+  sectionLabelMain: { fontSize: 14, fontFamily: 'Manrope_700Bold', color: '#131b2e', marginHorizontal: 16, marginBottom: 12 },
+  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   sectionLabel: { fontSize: 14, fontFamily: 'Manrope_700Bold', color: '#131b2e' },
   countBadge: { backgroundColor: '#006591', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2, minWidth: 24, alignItems: 'center' },
   countBadgeText: { fontSize: 10, fontFamily: 'Manrope_800ExtraBold', color: '#ffffff' },
@@ -781,7 +776,7 @@ const styles = StyleSheet.create({
   rawTextToggle: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 24, padding: 14, backgroundColor: '#eef0ff', borderRadius: 12, borderLeftWidth: 3, borderLeftColor: '#006591' },
   rawTextLabel: { fontSize: 12, fontFamily: 'Manrope_700Bold', color: '#006591', flex: 1 },
 
-  recordCard: { backgroundColor: '#ffffff', borderRadius: 16, marginBottom: 12, overflow: 'hidden', shadowColor: '#1f2687', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2, borderWidth: 1, borderColor: 'rgba(190, 200, 210, 0.2)', borderLeftWidth: 3, borderLeftColor: '#006591' },
+  recordCard: { backgroundColor: '#ffffff', borderRadius: 16, marginBottom: 12, marginHorizontal: 16, overflow: 'hidden', shadowColor: '#1f2687', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2, borderWidth: 1, borderColor: 'rgba(190, 200, 210, 0.2)', borderLeftWidth: 3, borderLeftColor: '#006591' },
   recordCardHeader: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 },
   recordDateBadge: { width: 48, alignItems: 'center', backgroundColor: '#eef0ff', borderRadius: 12, paddingVertical: 8 },
   recordDateDay: { fontSize: 20, fontFamily: 'Manrope_800ExtraBold', color: '#006591' },
